@@ -15,7 +15,7 @@ Abra o link do GitHub Pages deste repositório e experimente:
 5. Em "Minha casa", marcar um ponto no mapa e mudar o raio.
 6. Trocar para "Bem-vindo, Turista" e ver o roteiro a pé.
 7. Tocar no clima (canto superior direito) e trocar entre clima ao vivo, chuva, tempestade, dia e noite.
-8. Aproximar o mapa e observar carros, ônibus, bicicletas e pessoas.
+8. Aproximar o mapa e observar as pessoas nas calçadas e praças.
 9. Testar no celular.
 
 ## Envie seu retorno

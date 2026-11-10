@@ -756,8 +756,13 @@
     const noite = [52, 66, 112], tarde = [255, 196, 150], dia = [255, 255, 255];
     let cor;
     if (L >= 1) cor = dia; else if (L >= 0.5) { const f = (L - 0.5) / 0.5; cor = tarde.map((v, i) => v + (dia[i] - v) * f); } else { const f = L / 0.5; cor = noite.map((v, i) => v + (tarde[i] - v) * f); }
-    const escurecer = 1 - 0.18 * ch - 0.06 * nv;
-    cor = cor.map(v => Math.round(v * escurecer));
+    const cinza = [208, 214, 228], fc = Math.max(0, (nv - 0.3) / 0.7) * 0.85 + ch * 0.15;
+    cor = cor.map((v, i) => v + (cinza[i] * (v / 255) - v) * fc);
+    if (nv < 0.35 && ch === 0 && L > 0.6) cor = [255, 249, 236].map((v, i) => v * (cor[i] / 255));
+    cor = cor.map(v => Math.round(v * (1 - 0.12 * ch)));
+    const sat = (1.18 - 0.5 * Math.max(0, nv - 0.2) - 0.15 * ch).toFixed(2);
+    const bri = (1.05 - 0.14 * Math.max(0, nv - 0.2) - 0.06 * ch).toFixed(2);
+    if (viewer.drawer?.canvas) viewer.drawer.canvas.style.filter = `saturate(${sat}) brightness(${bri})`;
     vida.tinta.style.backgroundColor = `rgb(${cor[0]},${cor[1]},${cor[2]})`;
     document.getElementById("mapa").classList.toggle("noite", L < 0.35);
   }
@@ -796,7 +801,7 @@
   }
   function popular() {
     vida.agentes = [];
-    const n = ehCelular() ? { carro: 30, onibus: 3, pe: 24, bike: 2 } : { carro: 55, onibus: 5, pe: 45, bike: 4 };
+    const n = ehCelular() ? { pe: 24 } : { pe: 45 };
     for (const [tipo, q] of Object.entries(n)) for (let i = 0; i < q; i++) { const a = novoAgente(tipo); if (a) vida.agentes.push(a); }
     vida.postes = [];
     for (const v of viasCarro) {
@@ -825,7 +830,7 @@
   }
 
   function garantirNuvens() {
-    const alvo = Math.round(3 + vida.cond.nuvens * 9);
+    const alvo = Math.round(2 + vida.cond.nuvens * 14);
     while (vida.nuvens.length < alvo) vida.nuvens.push({ x: Math.random() * W, y: Math.random() * DADOS.mosaico.altura, r: 500 + Math.random() * 900, a: 0.5 + Math.random() * 0.5 });
     vida.nuvens.length = alvo;
   }
@@ -874,7 +879,7 @@
       const [sx, sy] = tela(n.x, n.y), sr = n.r * k;
       if (sx + sr < 0 || sx - sr > vida.w || sy + sr < 0 || sy - sr > vida.h) continue;
       const grad = g.createRadialGradient(sx, sy, 0, sx, sy, sr);
-      const al = (0.1 + 0.12 * vida.cond.nuvens) * n.a * (0.4 + 0.6 * vida.luz);
+      const al = (0.04 + 0.26 * vida.cond.nuvens) * n.a * (0.4 + 0.6 * vida.luz);
       grad.addColorStop(0, `rgba(10,16,30,${al})`); grad.addColorStop(1, "rgba(10,16,30,0)");
       g.save(); g.translate(sx, sy); g.scale(1, 0.55); g.translate(-sx, -sy);
       g.fillStyle = grad; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill(); g.restore();
