@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Tiny BH: Belo Horizonte em pixel art. Prévia para testadores com o bairro Santa Efigênia.">
+<title>Tiny BH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --chao: #12161d;
+    --painel: #1a2029;
+    --painel-2: #232b36;
+    --borda: #343f4d;
+    --texto: #eef1f5;
+    --apagado: #9aa5b3;
+    --telha: #e8744c;
+    --ipe: #f2c230;
+    --verde: #5fbf6a;
+    --azul: #5aa9e6;
+    --rosa: #e86a9e;
+    --lilas: #a98be8;
+    --fonte-titulo: "Silkscreen", "Courier New", monospace;
+    --fonte-texto: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--chao); color: var(--texto); font-family: var(--fonte-texto); font-size: 14px; overflow: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--ipe); outline-offset: 2px; }
+  #mapa { position: fixed; inset: 0; background: var(--chao); }
+  #mapa.marcando, #mapa.marcando * { cursor: crosshair !important; }
+
+  .painel {
+    position: fixed; z-index: 10;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    width: 360px;
+    display: flex; flex-direction: column;
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+  }
+  .topo { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--borda); }
+  .linha-marca { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .marca { font-family: var(--fonte-titulo); font-size: 24px; margin: 0; line-height: 1; letter-spacing: 0.03em; }
+  .marca span { color: var(--telha); }
+  .bairro { font-size: 11px; color: var(--apagado); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .modos { display: grid; grid-template-columns: 1fr 1fr; background: var(--chao); border-radius: 6px; padding: 3px; gap: 3px; }
+  .modos button { border: 0; background: transparent; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: 600; color: var(--apagado); }
+  .modos button[aria-pressed="true"] { background: var(--painel-2); color: var(--texto); box-shadow: inset 0 -2px 0 var(--telha); }
+  .busca { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--borda); background: var(--chao); }
+  .busca::placeholder { color: var(--apagado); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--borda); background: transparent; border-radius: 999px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+  .chip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .chip[aria-pressed="true"] { background: var(--painel-2); border-color: var(--texto); }
+
+  .casa { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: var(--chao); border-radius: 6px; }
+  .casa strong { font-size: 12px; flex: 1 1 100%; }
+  .casa small { color: var(--apagado); flex: 1 1 100%; line-height: 1.4; }
+  .botao { border: 1px solid var(--borda); background: var(--painel-2); padding: 7px 10px; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 12px; }
+  .botao.primario { background: var(--telha); border-color: var(--telha); color: #1b1009; }
+  .casa select { background: var(--painel-2); border: 1px solid var(--borda); border-radius: 5px; padding: 6px; font-size: 12px; }
+
+  .intro-turista { padding: 12px; border-radius: 6px; background: linear-gradient(135deg, rgba(242, 194, 48, 0.14), rgba(232, 116, 76, 0.12)); border: 1px solid rgba(242, 194, 48, 0.35); line-height: 1.45; }
+  .intro-turista h2 { font-family: var(--fonte-titulo); font-size: 14px; margin: 0 0 4px; color: var(--ipe); }
+  .intro-turista p { margin: 0; color: var(--texto); font-size: 13px; }
+
+  .conteudo { flex: 1; overflow-y: auto; min-height: 0; }
+  .contagem { padding: 10px 16px 6px; font-size: 11px; color: var(--apagado); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .lista { list-style: none; margin: 0; padding: 0 8px 12px; }
+  .lista li button { width: 100%; text-align: left; border: 0; background: transparent; padding: 9px 8px; border-radius: 6px; cursor: pointer; display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; }
+  .lista li button:hover { background: var(--painel-2); }
+  .lista .ponto { width: 10px; height: 10px; border-radius: 2px; }
+  .lista .nome { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lista .sub { font-size: 12px; color: var(--apagado); }
+  .lista .dist { font-size: 12px; color: var(--apagado); font-variant-numeric: tabular-nums; }
+  .selo-mini { font-family: var(--fonte-titulo); font-size: 9px; padding: 2px 5px; border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+  .selo-mini.d { background: var(--telha); color: #1b1009; }
+  .selo-mini.t { background: var(--ipe); color: #1f1802; }
+  .roteiro { margin: 0 16px 8px; padding: 12px; border: 1px dashed var(--borda); border-radius: 6px; }
+  .roteiro h3 { margin: 0 0 8px; font-size: 13px; }
+  .roteiro ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--apagado); font-size: 13px; }
+  .roteiro ol b { color: var(--texto); font-weight: 600; }
+  .vazio { padding: 24px 16px; color: var(--apagado); line-height: 1.5; }
+
+  .ficha { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .ficha .voltar { align-self: flex-start; }
+  .ficha h2 { margin: 0; font-size: 20px; line-height: 1.2; text-wrap: balance; }
+  .ficha .cat { font-size: 12px; color: var(--apagado); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .ficha dl { margin: 0; display: grid; grid-template-columns: 84px 1fr; gap: 8px 12px; }
+  .ficha dt { color: var(--apagado); font-size: 12px; }
+  .ficha dd { margin: 0; overflow-wrap: anywhere; }
+  .ficha .acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ficha .acoes a { text-decoration: none; }
+  .aviso-plano { padding: 10px 12px; border-radius: 6px; background: var(--chao); font-size: 12px; color: var(--apagado); line-height: 1.45; }
+  .aviso-plano b { color: var(--texto); }
+
+  .pin { position: relative; width: 14px; height: 14px; transform: translate(-50%, -100%); cursor: pointer; }
+  .pin span { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 12px; height: 12px; border-radius: 3px 3px 3px 0; rotate: -45deg; border: 2px solid #12161d; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
+  .pin.destaque { width: 26px; height: 26px; }
+  .pin.destaque span { width: 20px; height: 20px; }
+  .pin.destaque::after { content: "★"; position: absolute; left: 50%; top: 3px; transform: translateX(-50%); font-size: 12px; color: #1b1009; pointer-events: none; }
+  .pin.ativo span { outline: 3px solid var(--texto); outline-offset: 1px; }
+  .pin.oculto { visibility: hidden !important; pointer-events: none; }
+  .pin .rotulo { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); white-space: nowrap; background: var(--painel); border: 1px solid var(--borda); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; pointer-events: none; }
+  .pin .num { position: absolute; left: 50%; top: -2px; transform: translateX(-50%); font-family: var(--fonte-titulo); font-size: 10px; color: #1f1802; pointer-events: none; }
+  .casa-pin { width: 22px; height: 22px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--azul); border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(90, 169, 230, 0.25); }
+  .raio { border: 2px dashed rgba(90, 169, 230, 0.85); background: rgba(90, 169, 230, 0.08); border-radius: 50%; pointer-events: none; box-sizing: border-box; }
+
+  .controles { position: fixed; z-index: 9; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(48px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 6px; }
+  .controles button { width: 44px; height: 44px; border: 1px solid var(--borda); border-radius: 6px; background: var(--painel); font-family: var(--fonte-titulo); font-size: 18px; cursor: pointer; }
+  .creditos { position: fixed; z-index: 8; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; padding-block: 8px calc(8px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: 11px; color: var(--apagado); background: linear-gradient(rgba(18, 22, 29, 0), rgba(18, 22, 29, 0.92)); pointer-events: none; }
+  .dica { position: fixed; z-index: 11; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--azul); color: #06121d; font-weight: 700; padding: 10px 14px; border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
+
+  @media (max-width: 720px) {
+    .painel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 46vh; border-radius: 12px 12px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .painel.recolhido { height: 152px; }
+    .topo { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+    .alca { display: block; }
+    .controles { bottom: calc(46vh + 12px); }
+    .painel.recolhido ~ .controles { bottom: 164px; }
+    .creditos { display: none; }
+  }
+  .alca { display: none; width: 40px; height: 4px; border-radius: 2px; background: var(--borda); margin: 0 auto; border: 0; padding: 0; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div id="mapa"></div>
+
+<aside class="painel" id="painel" aria-label="Explorar Santa Efigênia">
+  <div class="topo">
+    <button class="alca" id="alca" type="button" aria-label="Expandir ou recolher o painel"></button>
+    <div class="linha-marca">
+      <h1 class="marca">Tiny<span>BH</span></h1>
+      <span class="bairro">Santa Efigênia</span>
+    </div>
+    <div class="modos" role="group" aria-label="Modo">
+      <button type="button" id="modo-morador" aria-pressed="true">Moro em BH</button>
+      <button type="button" id="modo-turista" aria-pressed="false">Bem-vindo, Turista</button>
+    </div>
+    <div id="bloco-morador">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <input id="busca" class="busca" type="search" placeholder="Buscar: pizza, farmácia, hospital…" autocomplete="off">
+        <div class="chips" id="chips"></div>
+        <div class="casa" id="casa">
+          <strong>Minha casa</strong>
+          <small id="casa-texto">Marque onde você mora para ver o que tem perto.</small>
+          <button class="botao primario" id="marcar" type="button">Marcar no mapa</button>
+          <select id="raio" aria-label="Raio de busca" hidden>
+            <option value="300">até 300 m</option>
+            <option value="500" selected>até 500 m</option>
+            <option value="1000">até 1 km</option>
+            <option value="2000">até 2 km</option>
+          </select>
+          <button class="botao" id="limpar-casa" type="button" hidden>Remover</button>
+        </div>
+      </div>
+    </div>
+    <div id="bloco-turista" hidden>
+      <div class="intro-turista">
+        <h2>Bem-vindo a BH!</h2>
+        <p>Praças, igrejas e teatros de Santa Efigênia, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.</p>
+      </div>
+    </div>
+  </div>
+  <div class="conteudo" id="conteudo"></div>
+</aside>
+
+<div class="controles">
+  <button id="mais" type="button" aria-label="Aproximar">+</button>
+  <button id="menos" type="button" aria-label="Afastar">−</button>
+  <button id="inicio" type="button" aria-label="Ver o bairro inteiro">⌂</button>
+</div>
+
+<div class="dica" id="dica" hidden>Toque no mapa onde fica sua casa</div>
+
+<footer class="creditos">
+  <span>Base 3D: Google</span>
+  <span>Lugares e limites: © OpenStreetMap contributors</span>
+  <span>Prévia interna · planos e selos são simulações</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/5.0.1/openseadragon.min.js"></script>
+<script>
+  const DADOS = {"lugares":[{"id":"node/1130807788","nome":"A Gosto de Deus","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92668,"lon":-43.929793,"px":2213.9,"py":5169.6,"destaque":false,"selo":false},{"id":"node/1004294183","nome":"ASFAD","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924273,"lon":-43.922303,"px":2762.5,"py":3795.2,"destaque":false,"selo":false},{"id":"way/370657361","nome":"ATC - Associação dos Trabalhadores da Codemig","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92641,"lon":-43.921026,"px":3686.4,"py":3788.8,"destaque":false,"selo":false},{"id":"node/5598557621","nome":"Agência dos Correios","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Brasil, 75","telefone":null,"site":null,"horario":null,"lat":-19.924055,"lon":-43.921045,"px":2915.6,"py":3589.4,"destaque":false,"selo":false},{"id":"node/1784861400","nome":"Albrunas Restaurante","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926344,"lon":-43.924642,"px":3021.3,"py":4356.9,"destaque":false,"selo":false},{"id":"node/994537254","nome":"Algo Mais","categoria":"Bares","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 3575","telefone":null,"site":null,"horario":null,"lat":-19.926242,"lon":-43.919654,"px":3875.6,"py":3557.9,"destaque":false,"selo":false},{"id":"node/1083015229","nome":"Algosto","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922482,"lon":-43.924186,"px":1843.6,"py":3967.5,"destaque":false,"selo":false},{"id":"node/1005791052","nome":"Allegreto","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida Brasil","telefone":null,"site":null,"horario":null,"lat":-19.926047,"lon":-43.925209,"px":2823.3,"py":4438.4,"destaque":false,"selo":false},{"id":"node/1083015232","nome":"Amphora","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922696,"lon":-43.924249,"px":1902.1,"py":4016.9,"destaque":false,"selo":false},{"id":"node/4433323068","nome":"Araujo","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924847,"lon":-43.926469,"px":2207.9,"py":4494.9,"destaque":false,"selo":false},{"id":"node/4433323069","nome":"Araujo","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":"Avenida do Contorno, 2500","telefone":null,"site":null,"horario":null,"lat":-19.920867,"lon":-43.9245,"px":1261.3,"py":3909.7,"destaque":false,"selo":false},{"id":"node/1005874844","nome":"Araújo","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927909,"lon":-43.927963,"px":2940.2,"py":5001.2,"destaque":false,"selo":false},{"id":"way/11482988","nome":"Assaí Atacado e Varejo","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":"Avenida Francisco Sales, 898","telefone":null,"site":"http://assai.com.br","horario":"Mo-Sa 07:00-21:00; Su 08:00-18:00","lat":-19.922656,"lon":-43.928678,"px":1100.7,"py":4652.0,"destaque":false,"selo":false},{"id":"way/1017244674","nome":"Auto Mecânica Fantini","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":"Rua Domingos Vieira, 32","telefone":null,"site":null,"horario":null,"lat":-19.923196,"lon":-43.920882,"px":2664.5,"py":3512.0,"destaque":false,"selo":false},{"id":"node/1610275289","nome":"Banco Santander","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925978,"lon":-43.929307,"px":2071.5,"py":5019.1,"destaque":false,"selo":false},{"id":"way/370657357","nome":"Banco do Brasil","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926758,"lon":-43.920394,"px":3912.4,"py":3703.1,"destaque":false,"selo":false},{"id":"way/724151078","nome":"Bar e Restaurante Pituca do Carmélio","categoria":"Bares","grupo":"comer","turistico":false,"endereco":"Rua Lignito, 119-B","telefone":null,"site":null,"horario":null,"lat":-19.924706,"lon":-43.911659,"px":4798.4,"py":2276.6,"destaque":false,"selo":false},{"id":"node/1083015228","nome":"Bela Blusa","categoria":"Moda","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922732,"lon":-43.923217,"px":2097.4,"py":3744.5,"destaque":false,"selo":false},{"id":"node/12685780882","nome":"Boulevard","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.918588,"lon":-43.911916,"px":2758.5,"py":1782.1,"destaque":false,"selo":false},{"id":"way/89435468","nome":"Boulevard Shopping","categoria":"Shoppings","grupo":"compras","turistico":false,"endereco":"Avenida Dos Andradas, 3000","telefone":null,"site":"https://boulevardshopping.com.br/","horario":"Mo-Sa 08:00-20:00","lat":-19.920759,"lon":-43.920286,"px":1976.1,"py":3163.8,"destaque":false,"selo":false},{"id":"node/1005791048","nome":"Bradesco","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925787,"lon":-43.924776,"px":2815.6,"py":4349.5,"destaque":false,"selo":false},{"id":"node/1005874849","nome":"Bradesco","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927378,"lon":-43.927632,"px":2825.9,"py":4903.1,"destaque":false,"selo":false},{"id":"node/1004294157","nome":"Brasil 41","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923915,"lon":-43.920666,"px":2937.0,"py":3530.7,"destaque":false,"selo":false},{"id":"node/9555969107","nome":"CEU Diagnósticos","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Francisco Sales, 1656","telefone":null,"site":null,"horario":"Mo-Fr 07:00-19:00; Sa 08:00-12:00; PH closed","lat":-19.928921,"lon":-43.923939,"px":3986.2,"py":4405.3,"destaque":false,"selo":false},{"id":"way/1017242352","nome":"COBREQ - Posto Autorizado","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922585,"lon":-43.920496,"px":2534.0,"py":3391.7,"destaque":false,"selo":false},{"id":"way/589012455","nome":"CPS - Unimed","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Churchill, 36","telefone":null,"site":null,"horario":null,"lat":-19.922697,"lon":-43.917898,"px":3033.0,"py":2950.4,"destaque":false,"selo":false},{"id":"node/994530568","nome":"Café Viena Beer","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 3986","telefone":null,"site":null,"horario":null,"lat":-19.929063,"lon":-43.921796,"px":4414.1,"py":4163.3,"destaque":true,"selo":true},{"id":"node/1004294174","nome":"Caixa Econômica Federal","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924826,"lon":-43.923715,"px":2691.4,"py":4109.1,"destaque":false,"selo":false},{"id":"node/2095567709","nome":"Cantinho do Sabor","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 2939","telefone":null,"site":null,"horario":null,"lat":-19.921815,"lon":-43.920794,"px":2229.9,"py":3369.1,"destaque":false,"selo":false},{"id":"node/1558264078","nome":"Casa Rio Verde","categoria":"Bebidas","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926569,"lon":-43.925601,"px":2923.9,"py":4513.9,"destaque":false,"selo":false},{"id":"node/9735225420","nome":"Casa do Samba Resenha","categoria":"Bares","grupo":"comer","turistico":false,"endereco":"Rua Niquelina, 691","telefone":null,"site":null,"horario":"Mo-Su 08:00-22:00","lat":-19.921601,"lon":-43.914655,"px":3253.3,"py":2436.1,"destaque":false,"selo":false},{"id":"node/5677910529","nome":"Centro Auditivo Audiomarca","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Avenida do Contorno, 2650","telefone":"+55 31 3481 6266","site":"https://www.audiomarca.com.br/","horario":"Mo-Fr 08:00-18:00; Sa 09:00-12:00","lat":-19.921699,"lon":-43.923253,"px":1754.4,"py":3785.7,"destaque":false,"selo":false},{"id":"way/724442213","nome":"Centro Cultural Sesiminas","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Rua Álvares Maciel, 59","telefone":"+55 31 3241 7181","site":"https://www7.fiemg.com.br/sesi/centro-de-cultura/belo-horizonte","horario":"Mo-Su 07:00-23:00","lat":-19.925534,"lon":-43.920389,"px":3514.1,"py":3560.7,"destaque":false,"selo":false},{"id":"node/4394981697","nome":"Centro Odontológico da Polícia Militar","categoria":"Dentistas","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924744,"lon":-43.919556,"px":3405.2,"py":3441.7,"destaque":false,"selo":false},{"id":"way/724442221","nome":"Centro Psíquico da Adolescência e Infância - Cepai Fhemig","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":null,"telefone":"+55 31 3235 3000","site":null,"horario":"24/7","lat":-19.925431,"lon":-43.921627,"px":3260.3,"py":3788.4,"destaque":false,"selo":false},{"id":"node/4732103165","nome":"Centro de Especialidades Médicas - CEM","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua Domingos Vieira, 488","telefone":"+55 31 3247-3100","site":"http://www.ipsemg.mg.gov.br/ipsemg/portal/m/site/saude/rede-propria/677-centro-de-especialidades-medicas/517/561","horario":"Mo-Fr 07:00-19:00; PH off","lat":-19.922217,"lon":-43.924782,"px":1651.2,"py":4001.4,"destaque":false,"selo":false},{"id":"node/4732046322","nome":"Centro de Especialidades Médicas - Santa Casa BH","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua Domingos Vieira, 416","telefone":"+55 31 3238-8027","site":null,"horario":null,"lat":-19.922165,"lon":-43.925106,"px":1576.2,"py":4042.6,"destaque":false,"selo":false},{"id":"way/1074404476","nome":"Centro de Saúde Carlos Chagas","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Francisco Sales, 1715","telefone":"+55 31 3246 0235","site":null,"horario":null,"lat":-19.928811,"lon":-43.923524,"px":4024.4,"py":4370.3,"destaque":false,"selo":false},{"id":"node/1651200805","nome":"Chalé Mineiro Hostel","categoria":"Hospedagem","grupo":"servicos","turistico":false,"endereco":"Rua Santa Luzia, 288","telefone":"+55 31 34671576","site":"http://www.chalemineirohostel.com.br/","horario":null,"lat":-19.922483,"lon":-43.914627,"px":3545.4,"py":2483.3,"destaque":false,"selo":true},{"id":"node/11053942005","nome":"Chef Brasil","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927634,"lon":-43.928123,"px":2822.1,"py":4998.0,"destaque":false,"selo":false},{"id":"node/321017346","nome":"Chopp da Fábrica","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922015,"lon":-43.922385,"px":2012.0,"py":3653.9,"destaque":true,"selo":false},{"id":"node/14185551602","nome":"Cirúrgica Lobby","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Rua Padre Rolim, 788","telefone":"+5531973511650","site":null,"horario":null,"lat":-19.926634,"lon":-43.928719,"px":2390.0,"py":4998.0,"destaque":false,"selo":false},{"id":"way/1017457603","nome":"Citerol Uniformes e Ação","categoria":"Moda","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923193,"lon":-43.921325,"px":2584.5,"py":3477.4,"destaque":false,"selo":false},{"id":"node/5344606723","nome":"Clinic - Clínica de Especialidades Médicas","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua dos Otoni, 131","telefone":"+55 31 3241-2474","site":"https://www.clinic.com.br/","horario":null,"lat":-19.927246,"lon":-43.921823,"px":3817.1,"py":4024.0,"destaque":false,"selo":false},{"id":"way/724442217","nome":"Clínica Cardiodiagnóstico S/C","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua Manaus, 300","telefone":null,"site":null,"horario":"Mo-Fr 08:00-18:00","lat":-19.924924,"lon":-43.921061,"px":3195.7,"py":3652.9,"destaque":false,"selo":false},{"id":"way/1191315009","nome":"Clínica Conrad","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Rua Rio Grande do Norte, 77","telefone":null,"site":null,"horario":null,"lat":-19.926158,"lon":-43.929308,"px":2130.2,"py":5055.2,"destaque":false,"selo":false},{"id":"node/1612939611","nome":"Clínica Impianto","categoria":"Dentistas","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":"24/7","lat":-19.926631,"lon":-43.924938,"px":3062.0,"py":4429.0,"destaque":false,"selo":false},{"id":"node/4394161691","nome":"Cobasi","categoria":"Pet shops","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924892,"lon":-43.919134,"px":3528.5,"py":3391.3,"destaque":false,"selo":false},{"id":"way/370657356","nome":"Codemig - Companhia de Desenvolvimento Econômico de Minas Gerais","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926629,"lon":-43.920931,"px":3774.5,"py":3792.4,"destaque":false,"selo":false},{"id":"node/1614268620","nome":"Cozinha da Jane","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927842,"lon":-43.92482,"px":3477.6,"py":4512.1,"destaque":false,"selo":false},{"id":"node/1614336812","nome":"Cuca de Anjo II","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927364,"lon":-43.928273,"px":2707.3,"py":4959.8,"destaque":false,"selo":true},{"id":"way/89435102","nome":"Câmara Municipal de Belo Horizonte","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida dos Andradas, 3100","telefone":null,"site":"https://www.cmbh.mg.gov.br","horario":null,"lat":-19.920829,"lon":-43.916054,"px":2752.5,"py":2574.7,"destaque":false,"selo":false},{"id":"node/1610275284","nome":"Deotti Lanchonete","categoria":"Lanchonetes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925847,"lon":-43.929226,"px":2043.1,"py":4991.6,"destaque":false,"selo":false},{"id":"node/324390623","nome":"Donna Margherita","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida Carandaí, 840","telefone":null,"site":null,"horario":null,"lat":-19.927492,"lon":-43.930142,"px":2416.4,"py":5299.4,"destaque":true,"selo":true},{"id":"node/1005791051","nome":"Droga Zap","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925569,"lon":-43.92442,"px":2808.0,"py":4276.3,"destaque":false,"selo":false},{"id":"node/2095567708","nome":"Drogaria Araujo","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":"Avenida do Contorno, 2939","telefone":null,"site":"http://www.drogazap.com.br","horario":null,"lat":-19.921857,"lon":-43.92097,"px":2212.4,"py":3399.2,"destaque":false,"selo":false},{"id":"node/6401651001","nome":"Drogaria Araujo","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926495,"lon":-43.930802,"px":1974.0,"py":5299.2,"destaque":false,"selo":false},{"id":"node/4699014090","nome":"Editora moderna","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Mem de Sá, 962","telefone":null,"site":null,"horario":"Mo-Fr 09:00-18:00","lat":-19.924318,"lon":-43.908894,"px":5164.1,"py":1807.8,"destaque":false,"selo":false},{"id":"node/1005791056","nome":"Elegia","categoria":"Bares","grupo":"comer","turistico":false,"endereco":"Avenida Brasil","telefone":null,"site":null,"horario":null,"lat":-19.925662,"lon":-43.924555,"px":2814.2,"py":4305.4,"destaque":false,"selo":false},{"id":"node/3982664687","nome":"Eletrobras Furnas","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Brasil, 888 - 15º andar","telefone":null,"site":null,"horario":null,"lat":-19.927433,"lon":-43.927716,"px":2828.7,"py":4920.4,"destaque":false,"selo":false},{"id":"node/2848610581","nome":"Epa Supermercados","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926249,"lon":-43.918509,"px":4082.0,"py":3350.6,"destaque":false,"selo":false},{"id":"way/97670963","nome":"Escola Estadual Pedro II","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":"Avenida Professor Alfredo Balena, 523","telefone":"+55 31 3485-8668","site":null,"horario":null,"lat":-19.926024,"lon":-43.930008,"px":1961.6,"py":5142.0,"destaque":false,"selo":false},{"id":"way/116648335","nome":"Escola Municipal Santos Dumont","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922219,"lon":-43.912294,"px":3874.9,"py":2176.5,"destaque":false,"selo":false},{"id":"way/724442223","nome":"Espaço Comum Luiz Estrela","categoria":"Teatros","grupo":"cultura","turistico":true,"endereco":"Rua Manaus, 348","telefone":null,"site":"https://espacocomumluizestrela.org/","horario":null,"lat":-19.925512,"lon":-43.921228,"px":3357.7,"py":3730.1,"destaque":false,"selo":false},{"id":"node/1004294073","nome":"Esso","categoria":"Postos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925483,"lon":-43.923627,"px":2921.2,"py":4146.8,"destaque":false,"selo":false},{"id":"node/3786717771","nome":"Estacionamento Santa Barbara","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925622,"lon":-43.928771,"px":2051.0,"py":4900.5,"destaque":false,"selo":false},{"id":"way/466683296","nome":"Estação Bernardo Monteiro","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922295,"lon":-43.927073,"px":1268.6,"py":4416.3,"destaque":false,"selo":false},{"id":"way/724442219","nome":"Faculdade Unimed","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":"Rua Grão Pará, 379","telefone":null,"site":"https://www.faculdadeunimed.edu.br","horario":null,"lat":-19.925321,"lon":-43.922129,"px":3135.2,"py":3863.5,"destaque":false,"selo":false},{"id":"way/314938408","nome":"Faculdade de Ciências Médicas de Minas Gerais","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924257,"lon":-43.931169,"px":1179.1,"py":5139.0,"destaque":false,"selo":false},{"id":"way/85513629","nome":"Faculdade de Medicina","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":"Avenida Professor Alfredo Balena, 190","telefone":null,"site":null,"horario":null,"lat":-19.924263,"lon":-43.929398,"px":1496.4,"py":4870.2,"destaque":false,"selo":false},{"id":"node/5284207865","nome":"Farmácia REDEFARMA","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":"Avenida Mem de Sá, 940","telefone":null,"site":null,"horario":null,"lat":-19.924158,"lon":-43.909191,"px":5059.3,"py":1874.1,"destaque":false,"selo":false},{"id":"node/1124224396","nome":"Feira Tom Jobim (Itinerante)","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927912,"lon":-43.928536,"px":2838.9,"py":5061.0,"destaque":false,"selo":false},{"id":"way/1017457604","nome":"Fisioar Fisioterapia","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923203,"lon":-43.921283,"px":2595.3,"py":3509.0,"destaque":false,"selo":false},{"id":"node/1557490151","nome":"Galpão Minas Motos","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92575,"lon":-43.92,"px":3653.8,"py":3576.4,"destaque":false,"selo":false},{"id":"node/1005874857","nome":"Garfo de Ouro","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":"11:00-14:00","lat":-19.927661,"lon":-43.927515,"px":2939.2,"py":4915.9,"destaque":false,"selo":false},{"id":"node/1524484370","nome":"Glassê","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.928418,"lon":-43.926451,"px":3375.1,"py":4792.5,"destaque":false,"selo":false},{"id":"node/5984294067","nome":"Google","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida dos Andradas, 3000","telefone":"+55 31 2128 6800","site":null,"horario":null,"lat":-19.92025,"lon":-43.921098,"px":1665.7,"py":3330.2,"destaque":false,"selo":false},{"id":"node/2791792327","nome":"Granfinos","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924865,"lon":-43.923207,"px":2794.6,"py":4008.3,"destaque":false,"selo":false},{"id":"node/3188323436","nome":"HC-COOP - Clínica de Especialidades Médicas","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua Maranhão, 774","telefone":null,"site":null,"horario":null,"lat":-19.92861,"lon":-43.924794,"px":3732.6,"py":4552.2,"destaque":false,"selo":false},{"id":"node/4281264653","nome":"Hená Duarte","categoria":"Dentistas","grupo":"saude","turistico":false,"endereco":"Avenida Pasteur, 89 sala 608","telefone":null,"site":null,"horario":null,"lat":-19.927163,"lon":-43.929016,"px":2509.4,"py":5069.0,"destaque":false,"selo":false},{"id":"way/11482993","nome":"Hospital Infantil João Paulo II","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Alameda Ezequiel Dias, 345","telefone":null,"site":null,"horario":null,"lat":-19.924858,"lon":-43.931445,"px":1325.7,"py":5317.8,"destaque":false,"selo":false},{"id":"relation/11214465","nome":"Hospital São Lucas","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Francisco Sales, 1186","telefone":null,"site":null,"horario":null,"lat":-19.925578,"lon":-43.926135,"px":2505.8,"py":4478.1,"destaque":false,"selo":false},{"id":"relation/7475347","nome":"Hospital Unimed","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida do Contorno, 3097","telefone":null,"site":null,"horario":null,"lat":-19.921955,"lon":-43.919781,"px":2455.8,"py":3156.2,"destaque":false,"selo":false},{"id":"way/218165858","nome":"Hospital da Polícia Militar","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida do Contorno, 2787","telefone":null,"site":null,"horario":null,"lat":-19.921084,"lon":-43.921974,"px":1781.5,"py":3486.9,"destaque":false,"selo":false},{"id":"way/314938409","nome":"Hospital da Previdência - IPSEMG","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923483,"lon":-43.930828,"px":987.4,"py":5075.9,"destaque":false,"selo":false},{"id":"way/11482987","nome":"Hospital das Clínicas São Vicente de Paulo","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Professor Alfredo Balena, 110","telefone":null,"site":null,"horario":null,"lat":-19.924045,"lon":-43.928036,"px":1667.6,"py":4553.3,"destaque":false,"selo":false},{"id":"way/11482994","nome":"Hospital de Pronto Socorro João XXIII","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Professor Alfredo Balena, 400","telefone":"+55 31 3239 9228","site":null,"horario":null,"lat":-19.925682,"lon":-43.930971,"px":1678.8,"py":5263.5,"destaque":false,"selo":false},{"id":"node/4565596994","nome":"IEP - Santa Casa","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.921698,"lon":-43.926358,"px":1201.2,"py":4241.5,"destaque":false,"selo":false},{"id":"node/12546757966","nome":"INCC Café","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":"Avenida Brasil, 75","telefone":null,"site":"https://www.instagram.com/incc_bh","horario":"We-Th 17:00-23:00, Fr-Sa 17:00-23:59, Su 15:00-20:00","lat":-19.924133,"lon":-43.921176,"px":2917.5,"py":3615.3,"destaque":false,"selo":false},{"id":"way/1017242357","nome":"Igreja Metodista","categoria":"Igrejas","grupo":"cultura","turistico":true,"endereco":"Rua Manaus, 40","telefone":null,"site":null,"horario":null,"lat":-19.922754,"lon":-43.920623,"px":2566.6,"py":3413.9,"destaque":false,"selo":false},{"id":"way/724151092","nome":"Impressa Diário dos Associados","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Mem de Sá","telefone":null,"site":null,"horario":null,"lat":-19.921501,"lon":-43.912106,"px":3674.3,"py":2082.8,"destaque":false,"selo":false},{"id":"way/89434147","nome":"Instituto Raul Soares","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.921199,"lon":-43.917796,"px":2562.9,"py":2874.8,"destaque":false,"selo":false},{"id":"node/12197698262","nome":"Instituto de Olhos Ciências Médicas MG","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Churchill, 232","telefone":null,"site":null,"horario":null,"lat":-19.922297,"lon":-43.917156,"px":3034.6,"py":2859.8,"destaque":false,"selo":false},{"id":"way/1075950933","nome":"Instituto de Olhos de Belo Horizonte","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Rua Padre Rolim, 541","telefone":null,"site":null,"horario":null,"lat":-19.927529,"lon":-43.92666,"px":3048.0,"py":4692.3,"destaque":false,"selo":false},{"id":"node/1890137242","nome":"Inventiva Sorvetes","categoria":"Lanchonetes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927236,"lon":-43.922673,"px":3662.3,"py":4149.0,"destaque":false,"selo":false},{"id":"node/1005874842","nome":"Ipiranga","categoria":"Postos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92795,"lon":-43.928042,"px":2939.4,"py":5001.7,"destaque":false,"selo":false},{"id":"node/4394996895","nome":"Ipiranga","categoria":"Postos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923979,"lon":-43.918931,"px":3267.0,"py":3276.2,"destaque":false,"selo":false},{"id":"node/1004294068","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925067,"lon":-43.922881,"px":2918.5,"py":3982.8,"destaque":false,"selo":false},{"id":"node/1004294079","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.9249,"lon":-43.922574,"px":2918.7,"py":3899.5,"destaque":false,"selo":false},{"id":"node/1004294113","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92519,"lon":-43.923811,"px":2793.0,"py":4153.6,"destaque":false,"selo":false},{"id":"node/1005795677","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927758,"lon":-43.9283,"px":2830.9,"py":5038.2,"destaque":false,"selo":false},{"id":"node/1005874827","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927493,"lon":-43.92783,"px":2828.1,"py":4918.8,"destaque":false,"selo":false},{"id":"node/2264452274","nome":"Itaú","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926456,"lon":-43.930524,"px":2010.5,"py":5288.9,"destaque":false,"selo":false},{"id":"way/724360633","nome":"La Tertúlia","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Rua Aníbal Benévolo, 404","telefone":null,"site":"https://www.latertulia.com.br/","horario":null,"lat":-19.925884,"lon":-43.913084,"px":4928.9,"py":2613.2,"destaque":false,"selo":false},{"id":"node/1005874825","nome":"Lanches Mais","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":"Avenida Brasil","telefone":null,"site":null,"horario":null,"lat":-19.927077,"lon":-43.926467,"px":2935.4,"py":4673.3,"destaque":false,"selo":false},{"id":"node/1007353313","nome":"Lapa Multishow","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924144,"lon":-43.922452,"px":2694.0,"py":3814.9,"destaque":false,"selo":false},{"id":"way/93411541","nome":"Maternidade Octaviano Neves","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922684,"lon":-43.926049,"px":1577.9,"py":4200.4,"destaque":false,"selo":false},{"id":"way/724442215","nome":"Matriz de Santa Efigênia","categoria":"Igrejas","grupo":"cultura","turistico":true,"endereco":"Rua Álvares Maciel, 223","telefone":"+55 31 3241 1348","site":null,"horario":null,"lat":-19.924848,"lon":-43.921901,"px":3021.5,"py":3764.5,"destaque":false,"selo":false},{"id":"node/12889600089","nome":"MedFi Consultoria de Investimentos","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida do Contorno, 3772","telefone":"+5531974003494","site":"https://medficonsultoria.com.br","horario":"Mo-Sa 08:00-18:00","lat":-19.927651,"lon":-43.920682,"px":4152.2,"py":3734.3,"destaque":false,"selo":false},{"id":"node/1005874823","nome":"Mediscan Medicina Diagnóstica","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927477,"lon":-43.927216,"px":2932.3,"py":4861.8,"destaque":false,"selo":false},{"id":"node/994543723","nome":"Mercantil","categoria":"Bancos","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925533,"lon":-43.919447,"px":3681.6,"py":3478.1,"destaque":false,"selo":false},{"id":"node/1314576286","nome":"Minas Moto","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926103,"lon":-43.919545,"px":3849.9,"py":3525.9,"destaque":false,"selo":false},{"id":"node/1497511226","nome":"Mitidão","categoria":"Padarias","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92747,"lon":-43.928301,"px":2736.9,"py":5002.9,"destaque":false,"selo":false},{"id":"node/1515497342","nome":"Nature Derme","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926425,"lon":-43.925124,"px":2961.8,"py":4435.0,"destaque":false,"selo":false},{"id":"node/2791792202","nome":"Noa Noa","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924353,"lon":-43.921681,"px":2899.4,"py":3739.4,"destaque":false,"selo":false},{"id":"node/1005791047","nome":"Nosso Visual","categoria":"Beleza","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926101,"lon":-43.924703,"px":2931.2,"py":4351.7,"destaque":false,"selo":false},{"id":"node/1123482327","nome":"Oratório","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":"+55 31 3241-7112","site":null,"horario":null,"lat":-19.924401,"lon":-43.921762,"px":2900.5,"py":3756.5,"destaque":false,"selo":false},{"id":"node/1505268194","nome":"Origem","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926536,"lon":-43.926927,"px":2677.1,"py":4721.6,"destaque":false,"selo":false},{"id":"node/1005874861","nome":"Padaria Brasil","categoria":"Padarias","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92702,"lon":-43.92707,"px":2809.3,"py":4789.7,"destaque":true,"selo":false},{"id":"node/1557090412","nome":"Padaria Café da Manhã","categoria":"Padarias","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925337,"lon":-43.916899,"px":4071.1,"py":3061.9,"destaque":false,"selo":false},{"id":"node/4394161692","nome":"Padaria Morigerati","categoria":"Padarias","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.919968,"lon":-43.911798,"px":3229.6,"py":1895.2,"destaque":false,"selo":true},{"id":"node/1491567943","nome":"Pague Menos","categoria":"Farmácias","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926893,"lon":-43.92785,"px":2628.9,"py":4868.9,"destaque":false,"selo":false},{"id":"node/1005874838","nome":"Paiol Grill","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":"11:00-14:00","lat":-19.926685,"lon":-43.926984,"px":2715.4,"py":4744.7,"destaque":false,"selo":false},{"id":"node/1497511227","nome":"Paiol Grill","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":"11:00-14:00","lat":-19.92738,"lon":-43.926568,"px":3016.0,"py":4733.7,"destaque":false,"selo":false},{"id":"way/724155444","nome":"Palmeiras Esporte Clube","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.9234,"lon":-43.913345,"px":4072.5,"py":2439.6,"destaque":false,"selo":false},{"id":"node/1083015227","nome":"Pap. Compasso","categoria":"Papelarias","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922689,"lon":-43.923411,"px":2048.9,"py":3869.9,"destaque":false,"selo":false},{"id":"node/1005795678","nome":"Paracone","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida Brasil","telefone":null,"site":null,"horario":null,"lat":-19.927592,"lon":-43.928039,"px":2823.4,"py":4987.0,"destaque":false,"selo":false},{"id":"way/724151069","nome":"Paróquia do Divino Espírito Santo","categoria":"Igrejas","grupo":"cultura","turistico":true,"endereco":"Rua Lignito, 62","telefone":null,"site":null,"horario":null,"lat":-19.92385,"lon":-43.911513,"px":4545.4,"py":2181.9,"destaque":false,"selo":false},{"id":"node/994537250","nome":"Pizzaria Contorno","categoria":"Lanchonetes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925356,"lon":-43.919398,"px":3632.7,"py":3325.1,"destaque":false,"selo":false},{"id":"node/1587113850","nome":"Pomar e Horta","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Rua Ceará, 766","telefone":null,"site":null,"horario":null,"lat":-19.92795,"lon":-43.927382,"px":3057.0,"py":4892.1,"destaque":false,"selo":false},{"id":"node/1004294167","nome":"Ponto do Espetinho 3","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida Brasil;Rua Maranhão, 272;310","telefone":"+55 31 3958-0556","site":null,"horario":null,"lat":-19.924625,"lon":-43.923659,"px":2635.8,"py":4076.1,"destaque":false,"selo":false},{"id":"node/2849412623","nome":"Posto Sao Pedro","categoria":"Postos","grupo":"servicos","turistico":false,"endereco":"Rua Niquelina","telefone":null,"site":null,"horario":null,"lat":-19.919079,"lon":-43.911708,"px":2955.7,"py":1796.8,"destaque":false,"selo":false},{"id":"way/1024979652","nome":"Praça Arnaldo Janssen","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.9283,"lon":-43.927878,"px":3082.8,"py":4995.0,"destaque":false,"selo":false},{"id":"way/562887064","nome":"Praça Doutor Lucas Machado","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926254,"lon":-43.925295,"px":2875.7,"py":4468.4,"destaque":false,"selo":false},{"id":"way/556876644","nome":"Praça Duque de Caxias","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926868,"lon":-43.931572,"px":1958.4,"py":5489.8,"destaque":false,"selo":false},{"id":"way/85665260","nome":"Praça Floriano Peixoto","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.923128,"lon":-43.919732,"px":2846.9,"py":3330.8,"destaque":false,"selo":false},{"id":"way/256189202","nome":"Praça Hugo Werneck","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92398,"lon":-43.926809,"px":1864.6,"py":4494.2,"destaque":false,"selo":false},{"id":"way/562887069","nome":"Praça João Pessoa","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927839,"lon":-43.928691,"px":2787.5,"py":5068.7,"destaque":false,"selo":false},{"id":"way/1028699757","nome":"Praça Oswaldo de Mello Campos","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926638,"lon":-43.92956,"px":2241.7,"py":5151.7,"destaque":false,"selo":false},{"id":"way/546851655","nome":"Praça da Mem de Sá","categoria":"Parques","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924084,"lon":-43.908899,"px":5087.3,"py":1820.9,"destaque":false,"selo":false},{"id":"node/3473469893","nome":"Provincia Di Salerno","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Rua Maranhão, 18","telefone":null,"site":null,"horario":null,"lat":-19.921921,"lon":-43.922898,"px":1890.1,"py":3733.3,"destaque":false,"selo":false},{"id":"way/724155448","nome":"Pão Mais","categoria":"Padarias","grupo":"comer","turistico":false,"endereco":"Rua Euclásio, 427","telefone":null,"site":null,"horario":"Mo-Su 06:00-10:00","lat":-19.92446,"lon":-43.912441,"px":4579.2,"py":2391.3,"destaque":false,"selo":false},{"id":"node/1005752289","nome":"Quase Light","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida Brasil, 400","telefone":null,"site":null,"horario":null,"lat":-19.925408,"lon":-43.924125,"px":2808.3,"py":4216.9,"destaque":false,"selo":false},{"id":"node/10095617717","nome":"Querida Jacinta","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Rua Grão Pará, 185","telefone":"+55 31 97116 2900","site":null,"horario":"Tu 11:00-14:30; We-Th 11:00-14:30, 18:00-00:00; Fr 11:00-14:30, 18:00-01:00; Sa 10:00-01:00; Su 10:00-16:00","lat":-19.923818,"lon":-43.921883,"px":2689.0,"py":3706.6,"destaque":false,"selo":false},{"id":"node/1505514930","nome":"Quero Quero","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.928075,"lon":-43.928043,"px":2979.9,"py":5014.5,"destaque":false,"selo":false},{"id":"node/1557090420","nome":"Realce","categoria":"Beleza","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925311,"lon":-43.917092,"px":4028.6,"py":3090.8,"destaque":false,"selo":false},{"id":"node/2791792262","nome":"Rei do Omelete","categoria":"Bares","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924283,"lon":-43.921595,"px":2891.7,"py":3719.5,"destaque":false,"selo":false},{"id":"node/1515490139","nome":"Restaurante 606","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926716,"lon":-43.925586,"px":2974.5,"py":4542.1,"destaque":false,"selo":false},{"id":"node/6791361280","nome":"Restaurante Maná","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Rua Euclásio, 433","telefone":"+55 31 2537 0630","site":null,"horario":"Mo-Su 11:00-15:00","lat":-19.92464,"lon":-43.912214,"px":4678.2,"py":2334.5,"destaque":false,"selo":false},{"id":"way/11482710","nome":"Santa Casa","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":"Avenida Francisco Sales, 1111","telefone":null,"site":null,"horario":null,"lat":-19.924733,"lon":-43.925651,"px":2316.5,"py":4248.5,"destaque":false,"selo":false},{"id":"node/4394167091","nome":"Santa Efigênia","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92474,"lon":-43.916486,"px":3950.3,"py":2961.1,"destaque":false,"selo":false},{"id":"relation/7475346","nome":"Santa Efigênia Street Mall","categoria":"Shoppings","grupo":"compras","turistico":false,"endereco":"Avenida do Contorno, 2939","telefone":null,"site":null,"horario":null,"lat":-19.921871,"lon":-43.92085,"px":2238.4,"py":3392.7,"destaque":false,"selo":false},{"id":"way/1071846226","nome":"Semper Hospital Geral","categoria":"Hospitais","grupo":"saude","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925515,"lon":-43.930871,"px":1642.2,"py":5229.7,"destaque":false,"selo":false},{"id":"node/5125489212","nome":"Sigga Mobile Tecnologies","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida dos Andradas, 3000","telefone":"+55 31 2126 0200","site":"https://www.sigga.com","horario":null,"lat":-19.920593,"lon":-43.921237,"px":1752.8,"py":3388.5,"destaque":false,"selo":false},{"id":"node/5293511529","nome":"Simples Implantes","categoria":"Dentistas","grupo":"saude","turistico":false,"endereco":"Rua Rio Grande do Norte, 194","telefone":null,"site":null,"horario":"Mo-Sa 08:00-18:00","lat":-19.927285,"lon":-43.929834,"px":2403.7,"py":5199.9,"destaque":false,"selo":false},{"id":"node/1524484371","nome":"Spiral com Café","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.928511,"lon":-43.926189,"px":3452.1,"py":4743.0,"destaque":false,"selo":false},{"id":"node/994530574","nome":"Studio da Carne","categoria":"Bares","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 3946","telefone":null,"site":null,"horario":null,"lat":-19.92884,"lon":-43.921635,"px":4369.9,"py":4105.4,"destaque":false,"selo":false},{"id":"node/1515491238","nome":"Subway","categoria":"Lanchonetes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.925745,"lon":-43.924673,"px":2820.3,"py":4334.1,"destaque":false,"selo":false},{"id":"node/2849415098","nome":"Supermercado BH","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":"Avenida Mem de Sá, 10","telefone":null,"site":null,"horario":null,"lat":-19.918549,"lon":-43.910393,"px":3017.1,"py":1549.2,"destaque":false,"selo":false},{"id":"node/2848615807","nome":"Supermercado Guarani","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924615,"lon":-43.908542,"px":5323.9,"py":1791.0,"destaque":false,"selo":false},{"id":"node/5598546022","nome":"TDCom","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Avenida Brasil, 75","telefone":"+55 31 3241 3500","site":"https://www.tdcom.com.br/","horario":"Mo-Fr 08:00-12:00, 14:00-18:00","lat":-19.924188,"lon":-43.921034,"px":2960.9,"py":3599.4,"destaque":false,"selo":false},{"id":"node/2830534881","nome":"Taxitel","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":"Rua Lignito, 172","telefone":"+55 31 3283-3062;+55 31 3283-6086","site":null,"horario":"24/7","lat":-19.924967,"lon":-43.912044,"px":4815.0,"py":2364.0,"destaque":false,"selo":false},{"id":"node/13046893901","nome":"Teatro Feluma","categoria":"Teatros","grupo":"cultura","turistico":true,"endereco":"Alameda Ezequiel Dias, 275","telefone":null,"site":"https://teatrofeluma.org.br/","horario":null,"lat":-19.924082,"lon":-43.931111,"px":1132.3,"py":5211.1,"destaque":false,"selo":false},{"id":"way/96950392","nome":"Teatro Marília","categoria":"Teatros","grupo":"cultura","turistico":true,"endereco":"Avenida Professor Alfredo Balena","telefone":null,"site":null,"horario":null,"lat":-19.926336,"lon":-43.931851,"px":1735.3,"py":5459.7,"destaque":false,"selo":false},{"id":"node/1558155671","nome":"Teatro Sesiminas","categoria":"Teatros","grupo":"cultura","turistico":true,"endereco":"Rua Padre Marinho, 60","telefone":"+55 31 3241 7168","site":null,"horario":null,"lat":-19.925999,"lon":-43.920573,"px":3633.0,"py":3674.7,"destaque":false,"selo":false},{"id":"node/994531310","nome":"Tenda Vila Árabe","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 3920","telefone":null,"site":null,"horario":null,"lat":-19.928658,"lon":-43.921447,"px":4344.2,"py":4081.0,"destaque":false,"selo":false},{"id":"way/370657359","nome":"Terceira Igreja Batista de Belo Horizonte","categoria":"Igrejas","grupo":"cultura","turistico":true,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926216,"lon":-43.921028,"px":3622.9,"py":3760.7,"destaque":false,"selo":false},{"id":"node/1557490186","nome":"Tia Eliana","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.92515,"lon":-43.919791,"px":3495.6,"py":3488.7,"destaque":false,"selo":false},{"id":"node/2849536718","nome":"Toninho Car Troca de Óleo","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":"Avenida Mem de Sá, 1524","telefone":null,"site":null,"horario":"07:00-19:00","lat":-19.928698,"lon":-43.908545,"px":6654.3,"py":2129.4,"destaque":false,"selo":false},{"id":"node/1455655027","nome":"Too Much","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926911,"lon":-43.928606,"px":2500.3,"py":4987.0,"destaque":false,"selo":false},{"id":"way/724155450","nome":"Umbigo do Gordo","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Rua Euclásio","telefone":null,"site":null,"horario":null,"lat":-19.924532,"lon":-43.912291,"px":4629.1,"py":2372.2,"destaque":false,"selo":false},{"id":"node/4732103166","nome":"Unidade de Pronto-Atendimento Centro-Sul","categoria":"Clínicas","grupo":"saude","turistico":false,"endereco":"Rua Domingos Vieira, 484","telefone":"+55 31 3238-5900;+55 31 3238-5925","site":null,"horario":"24/7","lat":-19.922054,"lon":-43.925345,"px":1497.5,"py":4070.1,"destaque":false,"selo":false},{"id":"way/314938410","nome":"Universidade Federal de Minas Gerais - campus Saúde","categoria":"Educação","grupo":"servicos","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.924396,"lon":-43.929329,"px":1552.0,"py":4896.2,"destaque":false,"selo":false},{"id":"node/5284133124","nome":"União Multimarcas","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":"Avenida Mem de Sá, 786","telefone":null,"site":null,"horario":null,"lat":-19.924045,"lon":-43.910184,"px":4845.7,"py":2008.9,"destaque":false,"selo":false},{"id":"way/1017452230","nome":"Veneza Joias Folheadas","categoria":"Outros","grupo":"servicos","turistico":false,"endereco":null,"telefone":"+55 31 3335 1028","site":null,"horario":null,"lat":-19.923268,"lon":-43.921185,"px":2634.0,"py":3536.5,"destaque":false,"selo":false},{"id":"node/6791361279","nome":"Via Bahia Supermercado Super Varejista","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":"Rua Euclásio, 459","telefone":null,"site":"https://supervarejista.net/","horario":"Mo-Sa 07:30-20:00, Su 07:30-13:00","lat":-19.924763,"lon":-43.911999,"px":4756.6,"py":2330.0,"destaque":false,"selo":false},{"id":"node/1857893310","nome":"Via Nutri","categoria":"Supermercados","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927273,"lon":-43.928591,"px":2621.0,"py":4996.9,"destaque":false,"selo":false},{"id":"node/3102803893","nome":"Vila Floriano","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":"Avenida do Contorno, 3277","telefone":"+55 31 2510-7955","site":null,"horario":null,"lat":-19.923512,"lon":-43.918907,"px":3118.9,"py":3208.2,"destaque":false,"selo":false},{"id":"node/1491567946","nome":"Vila Gaia","categoria":"Restaurantes","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.927084,"lon":-43.927893,"px":2683.7,"py":4873.6,"destaque":false,"selo":false},{"id":"node/1558264117","nome":"Vovó Bijuca","categoria":"Cafés","grupo":"comer","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.926692,"lon":-43.925858,"px":2918.2,"py":4562.9,"destaque":false,"selo":false},{"id":"node/2095567707","nome":"Waz","categoria":"Informática","grupo":"compras","turistico":false,"endereco":"Avenida do Contorno, 2939","telefone":"+55 31 21266666","site":"https://www.waz.com.br/","horario":null,"lat":-19.921907,"lon":-43.920755,"px":2267.0,"py":3365.4,"destaque":false,"selo":false},{"id":"node/4620619990","nome":"Xavier carnes","categoria":"Açougues","grupo":"compras","turistico":false,"endereco":"avenida dos andradas, 3500","telefone":null,"site":null,"horario":"Mo-Fr 09:00-18:00; Sa-Su 09:00-15:00","lat":-19.918495,"lon":-43.911681,"px":2770.1,"py":1747.0,"destaque":false,"selo":false},{"id":"node/6791382380","nome":"Zé Pequeno","categoria":"Automotivo","grupo":"servicos","turistico":false,"endereco":"Rua Lignito, 113","telefone":null,"site":null,"horario":null,"lat":-19.924782,"lon":-43.911834,"px":4792.2,"py":2317.3,"destaque":false,"selo":false},{"id":"node/1083015231","nome":"mada's","categoria":"Moda","grupo":"compras","turistico":false,"endereco":null,"telefone":null,"site":null,"horario":null,"lat":-19.922628,"lon":-43.923589,"px":1997.4,"py":3836.1,"destaque":false,"selo":false}],"mosaico":{"largura":7168,"altura":6400},"inv":{"lat":[-2.3470373710518133e-06,-2.766288935293626e-06,-19.907229106935578],"lon":[1.3199968401734332e-06,-5.065050912377023e-06,-43.906614029518394],"erroMedioM":16.0}};
+  const GRUPOS = {
+    comer: { nome: "Comer e beber", cor: "var(--telha)" },
+    compras: { nome: "Compras", cor: "var(--lilas)" },
+    saude: { nome: "Saúde", cor: "var(--rosa)" },
+    servicos: { nome: "Serviços", cor: "var(--azul)" },
+    cultura: { nome: "Cultura e lazer", cor: "var(--verde)" }
+  };
+
+  const estado = { modo: "morador", grupo: null, busca: "", selecionado: null, casa: null, raio: 500, marcando: false };
+  const lugares = DADOS.lugares.map(l => ({ ...l, chave: "lugar-" + l.id.replace("/", "-") }));
+  const porChave = new Map(lugares.map(l => [l.chave, l]));
+  const W = DADOS.mosaico.largura;
+
+  const viewer = OpenSeadragon({
+    id: "mapa",
+    showNavigationControl: false,
+    animationTime: 0.9,
+    visibilityRatio: 0.6,
+    minZoomImageRatio: 0.6,
+    maxZoomPixelRatio: 2.4,
+    imageSmoothingEnabled: false,
+    gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
+    gestureSettingsTouch: { clickToZoom: false, dblClickToZoom: true },
+    tileSources: { Image: { xmlns: "http://schemas.microsoft.com/deepzoom/2008", Url: "tiles/santa-efigenia_files/", Format: "webp", Overlap: "1", TileSize: "1022", Size: { Width: String(W), Height: String(DADOS.mosaico.altura) } } }
+  });
+
+  const normalizar = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const pxParaLatLon = (px, py) => ({ lat: DADOS.inv.lat[0] * px + DADOS.inv.lat[1] * py + DADOS.inv.lat[2], lon: DADOS.inv.lon[0] * px + DADOS.inv.lon[1] * py + DADOS.inv.lon[2] });
+  const distanciaM = (a, b) => {
+    const R = 6371000, r = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  const fmtDist = m => m < 1000 ? Math.round(m / 10) * 10 + " m" : (m / 1000).toFixed(1).replace(".", ",") + " km";
+  const vp = (x, y) => viewer.viewport.imageToViewportCoordinates(x, y);
+
+  const roteiro = (() => {
+    const pontos = lugares.filter(l => l.turistico && /Praça|Matriz|Teatro|Espaço/.test(l.nome));
+    if (!pontos.length) return [];
+    let atual = pontos.find(l => /Matriz/.test(l.nome)) || pontos[0];
+    const ordem = [atual];
+    const resto = new Set(pontos.filter(p => p !== atual));
+    while (ordem.length < 6 && resto.size) {
+      let melhor = null, md = Infinity;
+      for (const p of resto) { const d = distanciaM(atual, p); if (d < md) { md = d; melhor = p; } }
+      ordem.push(melhor); resto.delete(melhor); atual = melhor;
+    }
+    return ordem;
+  })();
+
+  function visiveis() {
+    let lista = lugares;
+    if (estado.modo === "turista") {
+      lista = lista.filter(l => l.turistico || l.selo);
+    } else {
+      if (estado.grupo) lista = lista.filter(l => l.grupo === estado.grupo);
+      if (estado.busca) {
+        const q = normalizar(estado.busca);
+        lista = lista.filter(l => normalizar(l.nome + " " + l.categoria + " " + (l.endereco || "")).includes(q));
+      }
+      if (estado.casa) lista = lista.filter(l => distanciaM(estado.casa, l) <= estado.raio);
+    }
+    const ordem = l => (l.destaque ? 0 : 1);
+    return lista.slice().sort((a, b) => {
+      if (estado.casa && estado.modo === "morador") return ordem(a) - ordem(b) || distanciaM(estado.casa, a) - distanciaM(estado.casa, b);
+      if (estado.modo === "turista") return (b.turistico - a.turistico) || a.nome.localeCompare(b.nome);
+      return ordem(a) - ordem(b) || a.nome.localeCompare(b.nome);
+    });
+  }
+
+  const elementosPin = new Map();
+  function criarPins() {
+    for (const l of lugares) {
+      const el = document.createElement("div");
+      el.className = "pin" + (l.destaque ? " destaque" : "");
+      el.title = l.nome;
+      const s = document.createElement("span");
+      s.style.background = l.selo && estado.modo === "turista" ? "var(--ipe)" : GRUPOS[l.grupo].cor;
+      el.appendChild(s);
+      viewer.addOverlay({ element: el, location: vp(l.px, l.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
+      new OpenSeadragon.MouseTracker({ element: el, clickHandler: () => selecionar(l.chave, true) });
+      elementosPin.set(l.chave, el);
+    }
+  }
+
+  function atualizarPins(lista) {
+    const ok = new Set(lista.map(l => l.chave));
+    const numRoteiro = new Map(roteiro.map((l, i) => [l.chave, i + 1]));
+    for (const l of lugares) {
+      const el = elementosPin.get(l.chave);
+      if (!el) continue;
+      el.classList.toggle("oculto", !ok.has(l.chave));
+      el.classList.toggle("ativo", estado.selecionado === l.chave);
+      el.firstChild.style.background = estado.modo === "turista" ? (l.turistico ? "var(--verde)" : "var(--ipe)") : GRUPOS[l.grupo].cor;
+      el.querySelector(".num")?.remove();
+      el.querySelector(".rotulo")?.remove();
+      if (estado.modo === "turista" && numRoteiro.has(l.chave)) {
+        const n = document.createElement("b"); n.className = "num"; n.textContent = numRoteiro.get(l.chave); el.appendChild(n);
+        el.firstChild.style.background = "var(--ipe)";
+      }
+      if (estado.selecionado === l.chave) {
+        const r = document.createElement("div"); r.className = "rotulo"; r.textContent = l.nome; el.appendChild(r);
+      }
+    }
+  }
+
+  function renderChips() {
+    const box = document.getElementById("chips");
+    box.innerHTML = "";
+    const todos = document.createElement("button");
+    todos.className = "chip"; todos.type = "button"; todos.textContent = "Tudo";
+    todos.setAttribute("aria-pressed", String(!estado.grupo));
+    todos.onclick = () => { estado.grupo = null; atualizar(); };
+    box.appendChild(todos);
+    for (const [k, g] of Object.entries(GRUPOS)) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.type = "button";
+      b.innerHTML = `<i style="background:${g.cor}"></i>${g.nome}`;
+      b.setAttribute("aria-pressed", String(estado.grupo === k));
+      b.onclick = () => { estado.grupo = estado.grupo === k ? null : k; atualizar(); };
+      box.appendChild(b);
+    }
+  }
+
+  function itemLista(l) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    const dist = estado.casa && estado.modo === "morador" ? fmtDist(distanciaM(estado.casa, l)) : "";
+    const cor = estado.modo === "turista" ? (l.turistico ? "var(--verde)" : "var(--ipe)") : GRUPOS[l.grupo].cor;
+    const marcas = (l.destaque && estado.modo === "morador" ? '<span class="selo-mini d">DESTAQUE</span>' : "") + (l.selo && estado.modo === "turista" ? '<span class="selo-mini t">SELO</span>' : "");
+    b.innerHTML = `<span class="ponto" style="background:${cor}"></span><span style="min-width:0"><span class="nome">${esc(l.nome)}${marcas}</span><span class="sub">${esc(l.categoria)}${l.endereco ? " · " + esc(l.endereco) : ""}</span></span><span class="dist">${dist}</span>`;
+    b.onclick = () => selecionar(l.chave, true);
+    li.appendChild(b);
+    return li;
+  }
+
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function renderLista(lista) {
+    const c = document.getElementById("conteudo");
+    c.innerHTML = "";
+    if (estado.modo === "turista" && roteiro.length) {
+      const r = document.createElement("div");
+      r.className = "roteiro";
+      r.innerHTML = `<h3>Passeio a pé pelas praças e igrejas</h3><ol>${roteiro.map(l => `<li><b>${esc(l.nome)}</b></li>`).join("")}</ol>`;
+      c.appendChild(r);
+    }
+    const n = document.createElement("div");
+    n.className = "contagem";
+    n.textContent = estado.modo === "turista" ? `${lista.length} lugares para visitar` : `${lista.length} lugares${estado.casa ? " perto da sua casa" : ""}`;
+    c.appendChild(n);
+    if (!lista.length) {
+      const v = document.createElement("div");
+      v.className = "vazio";
+      v.textContent = estado.casa ? "Nada encontrado nesse raio. Aumente a distância ou limpe a busca." : "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.";
+      c.appendChild(v);
+      return;
+    }
+    const ul = document.createElement("ul");
+    ul.className = "lista";
+    for (const l of lista) ul.appendChild(itemLista(l));
+    c.appendChild(ul);
+  }
+
+  function renderFicha(l) {
+    const c = document.getElementById("conteudo");
+    const maps = `https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lon}`;
+    const linhas = [
+      ["Endereço", l.endereco ? esc(l.endereco) + ", Santa Efigênia" : "Santa Efigênia, Belo Horizonte"],
+      l.horario ? ["Horário", esc(l.horario)] : null,
+      l.telefone ? ["Telefone", `<span style="user-select:all">${esc(l.telefone)}</span>`] : null,
+      estado.casa ? ["Distância", fmtDist(distanciaM(estado.casa, l)) + " da sua casa"] : null
+    ].filter(Boolean);
+    let plano = "";
+    if (l.destaque) plano = `<div class="aviso-plano"><b>Plano Destaque (simulação).</b> Pin maior com estrela e topo da busca. Na versão real, só empresas que assinarem aparecem assim.</div>`;
+    else if (l.selo) plano = `<div class="aviso-plano"><b>Selo Bem-vindo, Turista (simulação).</b> Aparece no modo turista com cupom para visitantes.</div>`;
+    else if (!l.turistico) plano = `<div class="aviso-plano">É o seu negócio? <b>Assuma esta ficha</b> para adicionar fotos, WhatsApp, cardápio e cupons.</div>`;
+    else plano = `<div class="aviso-plano"><b>Ponto turístico.</b> Sempre gratuito no mapa.</div>`;
+    c.innerHTML = `<div class="ficha">
+      <button class="botao voltar" id="voltar" type="button">← Voltar à lista</button>
+      <div><div class="cat">${esc(l.categoria)}</div><h2>${esc(l.nome)}</h2></div>
+      <dl>${linhas.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
+      <div class="acoes">
+        <a class="botao primario" href="${maps}" target="_blank" rel="noopener">Como chegar</a>
+        ${l.site ? `<a class="botao" href="${esc(l.site)}" target="_blank" rel="noopener">Site</a>` : ""}
+        <button class="botao" id="copiar" type="button">Copiar link</button>
+      </div>
+      ${plano}
+    </div>`;
+    document.getElementById("voltar").onclick = () => { estado.selecionado = null; history.replaceState(null, "", location.pathname + location.search); atualizar(); };
+    document.getElementById("copiar").onclick = async e => {
+      const t = location.href.split("#")[0] + "#" + l.chave;
+      try { await navigator.clipboard.writeText(t); e.target.textContent = "Link copiado"; }
+      catch { e.target.textContent = t; }
+    };
+  }
+
+  function selecionar(chave, voar) {
+    const l = porChave.get(chave);
+    if (!l) return;
+    estado.selecionado = chave;
+    if (location.hash !== "#" + chave) history.replaceState(null, "", "#" + chave);
+    atualizar();
+    if (voar) {
+      const alvo = vp(l.px, l.py);
+      const zoomAlvo = Math.max(viewer.viewport.getZoom(), viewer.viewport.imageToViewportZoom(0.55));
+      viewer.viewport.panTo(alvo).zoomTo(zoomAlvo, alvo);
+    }
+    document.getElementById("painel").classList.remove("recolhido");
+  }
+
+  function atualizar() {
+    document.getElementById("modo-morador").setAttribute("aria-pressed", String(estado.modo === "morador"));
+    document.getElementById("modo-turista").setAttribute("aria-pressed", String(estado.modo === "turista"));
+    document.getElementById("bloco-morador").hidden = estado.modo !== "morador";
+    document.getElementById("bloco-turista").hidden = estado.modo !== "turista";
+    renderChips();
+    const lista = visiveis();
+    atualizarPins(lista);
+    const sel = estado.selecionado && porChave.get(estado.selecionado);
+    if (sel) renderFicha(sel); else renderLista(lista);
+    desenharCasa();
+  }
+
+  let casaEl = null, raioEl = null;
+  function desenharCasa() {
+    if (casaEl) { viewer.removeOverlay(casaEl); casaEl = null; }
+    if (raioEl) { viewer.removeOverlay(raioEl); raioEl = null; }
+    const temCasa = !!estado.casa && estado.modo === "morador";
+    document.getElementById("raio").hidden = !estado.casa;
+    document.getElementById("limpar-casa").hidden = !estado.casa;
+    document.getElementById("marcar").textContent = estado.casa ? "Mudar" : "Marcar no mapa";
+    document.getElementById("casa-texto").textContent = estado.casa ? `Mostrando lugares a até ${fmtDist(estado.raio)} da sua casa.` : "Marque onde você mora para ver o que tem perto.";
+    if (!temCasa) return;
+    const metrosPorPx = distanciaM(pxParaLatLon(0, 0), pxParaLatLon(1000, 0)) / 1000;
+    const rx = estado.raio / metrosPorPx;
+    const ry = rx / 2;
+    raioEl = document.createElement("div"); raioEl.className = "raio";
+    const tl = vp(estado.casa.px - rx, estado.casa.py - ry), br = vp(estado.casa.px + rx, estado.casa.py + ry);
+    viewer.addOverlay({ element: raioEl, location: new OpenSeadragon.Rect(tl.x, tl.y, br.x - tl.x, br.y - tl.y) });
+    casaEl = document.createElement("div"); casaEl.className = "casa-pin"; casaEl.title = "Minha casa";
+    viewer.addOverlay({ element: casaEl, location: vp(estado.casa.px, estado.casa.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
+  }
+
+  function lerCasa() {
+    try { const v = JSON.parse(localStorage.getItem("tinybh-casa") || "null"); if (v && typeof v.px === "number") estado.casa = v; } catch {}
+    try { const r = Number(localStorage.getItem("tinybh-raio")); if (r) { estado.raio = r; document.getElementById("raio").value = String(r); } } catch {}
+  }
+  function salvarCasa() {
+    try { estado.casa ? localStorage.setItem("tinybh-casa", JSON.stringify(estado.casa)) : localStorage.removeItem("tinybh-casa"); localStorage.setItem("tinybh-raio", String(estado.raio)); } catch {}
+  }
+
+  document.getElementById("marcar").onclick = () => {
+    estado.marcando = true;
+    document.getElementById("mapa").classList.add("marcando");
+    document.getElementById("dica").hidden = false;
+    document.getElementById("painel").classList.add("recolhido");
+  };
+  document.getElementById("limpar-casa").onclick = () => { estado.casa = null; salvarCasa(); atualizar(); };
+  document.getElementById("raio").onchange = e => { estado.raio = Number(e.target.value); salvarCasa(); atualizar(); };
+  document.getElementById("busca").oninput = e => { estado.busca = e.target.value; estado.selecionado = null; atualizar(); };
+  document.getElementById("modo-morador").onclick = () => { estado.modo = "morador"; estado.selecionado = null; atualizar(); };
+  document.getElementById("modo-turista").onclick = () => { estado.modo = "turista"; estado.selecionado = null; atualizar(); };
+  document.getElementById("alca").onclick = () => document.getElementById("painel").classList.toggle("recolhido");
+  document.getElementById("mais").onclick = () => viewer.viewport.zoomBy(1.6).applyConstraints();
+  document.getElementById("menos").onclick = () => viewer.viewport.zoomBy(1 / 1.6).applyConstraints();
+  document.getElementById("inicio").onclick = () => viewer.viewport.goHome();
+
+  viewer.addHandler("canvas-click", e => {
+    if (!estado.marcando || !e.quick) return;
+    e.preventDefaultAction = true;
+    const p = viewer.viewport.viewerElementToImageCoordinates(e.position);
+    estado.casa = { px: p.x, py: p.y, ...pxParaLatLon(p.x, p.y) };
+    estado.marcando = false;
+    estado.selecionado = null;
+    document.getElementById("mapa").classList.remove("marcando");
+    document.getElementById("dica").hidden = true;
+    document.getElementById("painel").classList.remove("recolhido");
+    salvarCasa();
+    atualizar();
+  });
+
+  viewer.addHandler("open", () => {
+    criarPins();
+    lerCasa();
+    const h = location.hash.slice(1);
+    if (porChave.has(h)) selecionar(h, true); else atualizar();
+  });
+  window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (porChave.has(h) && h !== estado.selecionado) selecionar(h, true); });
+</script>
+
+</body>
+</html>
