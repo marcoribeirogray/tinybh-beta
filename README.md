@@ -15,7 +15,13 @@ Abra o link do GitHub Pages deste repositório e experimente:
 5. Em "Minha casa", marcar um ponto no mapa e mudar o raio.
 6. Trocar para "Bem-vindo, Turista" e ver o roteiro a pé.
 7. Tocar no clima (canto superior direito) e trocar entre clima ao vivo, chuva, tempestade, dia e noite.
-8. Testar no celular.
+8. Passar o mouse pelo mapa e ver o efeito tilt-shift (desfoque nas bordas, foco onde o mouse está). Ajuste a força em ⚙ Configurações.
+9. Esperar o aviãozinho com a faixa "Anuncie aqui" e clicar nele.
+10. Usar os cartões dos pontos turísticos (embaixo no computador, em cima no celular).
+11. Abrir ⚙ Configurações: minimapa, vida no mapa, contorno do bairro e idioma PT/EN.
+12. Atalhos: `/` busca, `M` minimapa, `B` contorno do bairro, `D` tilt-shift, `T` modo turista, `0` bairro inteiro, `+` e `−` zoom, `Esc` fecha.
+13. Usar o botão de compartilhar: o link guarda o ponto e o zoom exatos do mapa.
+14. Testar no celular.
 
 ## Envie seu retorno
 
@@ -23,6 +29,7 @@ Abra uma *issue* neste repositório contando o que funcionou, o que travou e o q
 
 ## Observações
 
+- O espaço publicitário do avião ainda não está à venda; o contato comercial aparece como "em breve".
 - Planos "Destaque" e "Selo Bem-vindo, Turista" que aparecem em alguns lugares são simulações; nenhuma empresa é cliente.
 - Lugares vêm do OpenStreetMap e podem estar incompletos ou desatualizados.
 - O clima ao vivo vem do Open-Meteo (open-meteo.com), atualizado a cada 15 minutos.
