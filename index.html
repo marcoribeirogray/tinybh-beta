@@ -126,12 +126,16 @@
   .dica { position: fixed; z-index: 11; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--azul); color: #06121d; font-weight: 700; padding: 10px 14px; border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
 
   @media (max-width: 720px) {
-    .painel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 46vh; border-radius: 12px 12px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
-    .painel.recolhido { height: 152px; }
-    .topo { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-    .alca { display: block; }
-    .controles { bottom: calc(46vh + 12px); }
-    .painel.recolhido ~ .controles { bottom: 164px; }
+    .painel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 62vh; border-radius: 12px 12px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); transition: height 0.2s ease; }
+    .painel.recolhido { height: auto; }
+    .painel.recolhido .linha-marca, .painel.recolhido .chips, .painel.recolhido .casa, .painel.recolhido .intro-turista, .painel.recolhido .conteudo { display: none; }
+    .painel.recolhido .topo { border-bottom: 0; gap: 8px; padding-top: 8px; }
+    .topo { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 8px; }
+    .alca { display: block; width: 56px; height: 5px; margin-bottom: 2px; }
+    .modos button { padding: 7px; }
+    .controles { bottom: calc(62vh + 12px); }
+    .painel.recolhido ~ .controles { bottom: calc(132px + env(safe-area-inset-bottom, 0px)); }
+    .controles button { width: 40px; height: 40px; }
     .creditos { display: none; }
   }
   .alca { display: none; width: 40px; height: 4px; border-radius: 2px; background: var(--borda); margin: 0 auto; border: 0; padding: 0; cursor: pointer; }
@@ -218,10 +222,12 @@
     animationTime: 0.9,
     visibilityRatio: 0.6,
     minZoomImageRatio: 0.6,
+    minPixelRatio: 0.9,
     maxZoomPixelRatio: 1,
-    imageSmoothingEnabled: false,
+    imageSmoothingEnabled: true,
     gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
     gestureSettingsTouch: { clickToZoom: false, dblClickToZoom: true },
+    homeFillsViewer: window.matchMedia("(max-width: 720px)").matches,
     tileSources: { Image: { xmlns: "http://schemas.microsoft.com/deepzoom/2008", Url: "tiles/santa-efigenia_files/", Format: "webp", Overlap: "1", TileSize: "1022", Size: { Width: String(W), Height: String(DADOS.mosaico.altura) } } }
   });
 
@@ -305,9 +311,11 @@
   function sprite(icone, cor, dourado) {
     const chave = icone + cor + dourado;
     if (cacheSprite.has(chave)) return cacheSprite.get(chave);
+    const E = 6;
     const cv = document.createElement("canvas");
-    cv.width = 16; cv.height = 20;
-    const g = cv.getContext("2d");
+    cv.width = 16 * E; cv.height = 20 * E;
+    const g0 = cv.getContext("2d");
+    const g = { set fillStyle(v) { g0.fillStyle = v; }, fillRect: (x, y, w, h) => g0.fillRect(Math.round(x * E), Math.round(y * E), Math.round(w * E), Math.round(h * E)) };
     const contorno = "#0f1318", aro = dourado ? "#f2c230" : contorno;
     g.fillStyle = contorno; g.fillRect(0, 0, 16, 16);
     g.fillStyle = aro; g.fillRect(1, 1, 14, 14);
@@ -575,6 +583,7 @@
   document.getElementById("inicio").onclick = () => viewer.viewport.goHome();
 
   viewer.addHandler("canvas-click", e => {
+    if (!estado.marcando && e.quick && ehCelular()) document.getElementById("painel").classList.add("recolhido");
     if (!estado.marcando || !e.quick) return;
     e.preventDefaultAction = true;
     const p = viewer.viewport.viewerElementToImageCoordinates(e.position);
@@ -588,9 +597,20 @@
     atualizar();
   });
 
-  viewer.addHandler("animation-finish", agrupar);
+  const ehCelular = () => window.matchMedia("(max-width: 720px)").matches;
+  function ajustarSuavizacao() {
+    const zoomImg = viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
+    const nitido = zoomImg * (window.devicePixelRatio || 1) >= 1.5;
+    if (viewer.drawer && viewer.drawer.setImageSmoothingEnabled) viewer.drawer.setImageSmoothingEnabled(!nitido);
+  }
+  viewer.addHandler("animation", ajustarSuavizacao);
+  viewer.addHandler("animation-finish", () => { ajustarSuavizacao(); agrupar(); });
+  viewer.addHandler("canvas-drag", () => { if (ehCelular()) document.getElementById("painel").classList.add("recolhido"); });
+  document.getElementById("busca").addEventListener("focus", () => document.getElementById("painel").classList.remove("recolhido"));
 
   viewer.addHandler("open", () => {
+    if (ehCelular()) document.getElementById("painel").classList.add("recolhido");
+    ajustarSuavizacao();
     criarPins();
     lerCasa();
     const h = location.hash.slice(1);
