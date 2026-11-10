@@ -801,7 +801,8 @@
     let tipo = "sol", nuvens = 0.25, chuva = 0, texto = "BH", detalhe = "";
     const c = vida.aoVivo?.current;
     if (vida.climaEscolhido === "vivo" && c) {
-      const [desc, t] = WMO[c.weather_code] || ["Tempo instável", "nublado"];
+      let [desc, t] = WMO[c.weather_code] || ["Tempo instável", "nublado"];
+      if ((t === "chuva" || t === "tempestade") && (c.precipitation || 0) < 0.1) { t = "nublado"; desc = (c.cloud_cover ?? 100) > 85 ? "Nublado" : "Parcialmente nublado"; }
       tipo = t;
       nuvens = Math.max(0.1, Math.min(1, (c.cloud_cover ?? 30) / 100));
       chuva = t === "tempestade" ? 1 : t === "chuva" ? Math.min(1, 0.3 + (c.precipitation || 0) / 4) : 0;
