@@ -801,7 +801,7 @@
   }
   function popular() {
     vida.agentes = [];
-    const n = ehCelular() ? { pe: 24 } : { pe: 45 };
+    const n = {};
     for (const [tipo, q] of Object.entries(n)) for (let i = 0; i < q; i++) { const a = novoAgente(tipo); if (a) vida.agentes.push(a); }
     vida.postes = [];
     for (const v of viasCarro) {
