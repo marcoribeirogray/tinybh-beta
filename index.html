@@ -1244,85 +1244,146 @@
     vida.pai.style.setProperty("--foco", tiltEst.foco.toFixed(1) + "px");
   }
 
-  const PALETA = { corpo: [206, 38, 36], asa: [222, 48, 40], nervura: [182, 30, 30], faixa: [246, 236, 214], motor: [74, 76, 86], haste: [236, 222, 190], cabine: [44, 32, 30], piloto: [238, 198, 158], vidro: [168, 214, 236], roda: [34, 34, 38], helice: [92, 70, 52] };
-  const LUZ = (() => { const v = [-0.38, -0.42, 0.82], m = Math.hypot(...v); return v.map(x => x / m); })();
+  const PALETA = { corpo: [196, 34, 34], asa: [214, 44, 38], faixa: [242, 232, 208], motor: [96, 98, 108], cromo: [200, 204, 212], haste: [228, 214, 182], cabine: [36, 26, 24], piloto: [120, 74, 46], oculos: [60, 60, 66], vidro: [150, 200, 226], roda: [34, 34, 38], helice: [110, 80, 54] };
+  const LUZ = (() => { const v = [-0.42, -0.36, 0.83], m = Math.hypot(...v); return v.map(x => x / m); })();
   const CAM = [0, -0.866, 0.5];
-  const modeloAviao = (() => {
-    const v = [], add = (f, s, u, c, n) => v.push({ f, s, u, c, n });
-    for (let f = -11.5; f <= 8.5; f += 0.4) {
-      const r = f >= -3 ? 1.75 : 1.75 - (-3 - f) * 0.14;
-      for (let a = 0; a < 6.283; a += 0.26) add(f, Math.cos(a) * r, Math.sin(a) * r * 1.08, f > 7 ? "motor" : "corpo", [0, Math.cos(a), Math.sin(a)]);
-    }
-    for (let s = -1.7; s <= 1.7; s += 0.4) for (let u = -1.7; u <= 1.7; u += 0.4) if (s * s + u * u < 3) add(8.7, s, u, "motor", [1, 0, 0]);
-    const asa = (f0, f1, larg, u) => {
-      for (let f = f0; f <= f1; f += 0.4) for (let s = -larg; s <= larg; s += 0.4) {
-        const pontaS = Math.abs(s) - (larg - 1.2);
-        if (pontaS > 0 && ((f - f0) < pontaS * 0.8 || (f1 - f) < pontaS * 0.8)) continue;
-        const as = Math.abs(s);
-        const c = as > 9.6 && as < 10.8 ? "faixa" : (as % 3.2 < 0.45 && as > 2 ? "nervura" : "asa");
-        add(f, s, u, c, [0, 0, 1]);
+  const MEIO = (() => { const h = [LUZ[0] + CAM[0], LUZ[1] + CAM[1], LUZ[2] + CAM[2]], m = Math.hypot(...h); return h.map(x => x / m); })();
+  const ESC_AV = 3.3, TEXEL = 2.2;
+  const malhaAviao = (() => {
+    const tris = [];
+    const tri = (a, b, c, cor, plano) => tris.push({ v: [a, b, c], cor, plano });
+    const norm = v => { const m = Math.hypot(...v) || 1; return v.map(x => x / m); };
+    const P = (f, s, u, n) => ({ p: [f * ESC_AV, s * ESC_AV, u * ESC_AV], n: norm(n) });
+    const loft = (secoes, cor, lados = 18) => {
+      const anel = sec => Array.from({ length: lados }, (_, i) => { const a = i / lados * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a); return P(sec.f, c * sec.ry, sec.u + sn * sec.rz, [0, c / Math.max(0.05, sec.ry), sn / Math.max(0.05, sec.rz)]); });
+      const aneis = secoes.map(anel);
+      for (let k = 0; k < aneis.length - 1; k++) for (let i = 0; i < lados; i++) {
+        const j = (i + 1) % lados, cc = typeof cor === "function" ? cor(secoes[k], i) : cor;
+        tri(aneis[k][i], aneis[k + 1][i], aneis[k + 1][j], cc); tri(aneis[k][i], aneis[k + 1][j], aneis[k][j], cc);
+      }
+      for (const [k, sinal] of [[0, -1], [aneis.length - 1, 1]]) { const sec = secoes[k]; const c = P(sec.f, 0, sec.u, [sinal, 0, 0]); for (let i = 0; i < lados; i++) tri(c, { ...aneis[k][i], n: [sinal, 0, 0] }, { ...aneis[k][(i + 1) % lados], n: [sinal, 0, 0] }, typeof cor === "function" ? cor(sec, 0) : cor); }
+    };
+    const asa = (f0, f1, larg, u0, esp, cor) => {
+      const nf = 8, ns = 40, corda = f1 - f0;
+      const perfil = x => esp * Math.sqrt(Math.max(0, x)) * (1 - x) * 2.2;
+      const deriv = x => (perfil(Math.min(1, x + 0.02)) - perfil(Math.max(0, x - 0.02))) / (0.04 * corda);
+      const dentro = (f, s) => { const as = Math.abs(s) - (larg - 2); if (as <= 0) return true; const fm = (f - f0) / corda - 0.5; return (as / 2) ** 2 + (fm / 0.5) ** 2 <= 1.02; };
+      for (const lado of [1, -1]) for (let i = 0; i < nf; i++) for (let j = 0; j < ns; j++) {
+        const fa = f0 + corda * i / nf, fb = f0 + corda * (i + 1) / nf, sa = -larg + 2 * larg * j / ns, sb = -larg + 2 * larg * (j + 1) / ns;
+        if (!dentro((fa + fb) / 2, (sa + sb) / 2)) continue;
+        const v = (f, s) => { const x = 1 - (f - f0) / corda; const h = lado > 0 ? perfil(x) : -perfil(x) * 0.25; const d = deriv(x); return P(f, s, u0 + h, lado > 0 ? [d, 0, 1] : [-d * 0.25, 0, -1]); };
+        const as = Math.abs((sa + sb) / 2), cc = typeof cor === "function" ? cor(as) : cor;
+        tri(v(fa, sa), v(fb, sa), v(fb, sb), cc); tri(v(fa, sa), v(fb, sb), v(fa, sb), cc);
       }
     };
-    asa(0.6, 4.6, 14, 3.4);
-    asa(0.2, 4.0, 12.6, -1.4);
-    for (const s of [-8.2, 8.2, -1.9, 1.9]) for (let u = -1.4; u <= 3.4; u += 0.35) { add(2.4, s, u, "haste", [0, Math.sign(s), 0]); add(3.0, s, u, "haste", [0, Math.sign(s), 0]); }
-    for (let f = -12; f <= -9.2; f += 0.4) for (let s = -5.6; s <= 5.6; s += 0.4) { if (Math.abs(s) > 4.4 && (f < -11.4 || f > -9.6)) continue; add(f, s, 0.3, "asa", [0, 0, 1]); }
-    for (let f = -12.4; f <= -8.6; f += 0.35) { const umax = 5 - (f + 12.4) * 1.1; for (let u = 0.6; u <= umax; u += 0.35) { add(f, 0.25, u, f < -11.6 ? "faixa" : "corpo", [0, 1, 0]); add(f, -0.25, u, f < -11.6 ? "faixa" : "corpo", [0, -1, 0]); } }
-    for (let f = -3.4; f <= -0.8; f += 0.35) for (let s = -1.1; s <= 1.1; s += 0.35) add(f, s, 1.95, "cabine", [0, 0, 1]);
-    for (let f = -2.6; f <= -1.8; f += 0.3) for (let s = -0.5; s <= 0.5; s += 0.3) for (let u = 2.2; u <= 2.9; u += 0.3) add(f, s, u, "piloto", [0, s, u - 2.5]);
-    for (let s = -1.1; s <= 1.1; s += 0.3) for (let u = 1.9; u <= 2.6; u += 0.3) add(-0.5, s, u, "vidro", [1, 0, 0.4]);
-    for (const s of [-2.7, 2.7]) {
-      for (let u = -3.6; u <= -1.6; u += 0.35) add(3.2, s * (0.6 + (u + 3.6) * -0.05), u, "haste", [0, Math.sign(s), 0]);
-      for (let f = 2.6; f <= 3.8; f += 0.3) for (let u = -4.1; u <= -3.0; u += 0.3) if ((f - 3.2) ** 2 + (u + 3.55) ** 2 < 0.4) add(f, s, u, "roda", [0, Math.sign(s), 0]);
+    const caixa = (f0, f1, s0, s1, u0, u1, cor) => {
+      const c = (f, s, u, n) => P(f, s, u, n);
+      const faces = [[[1, 0, 0], [[f1, s0, u0], [f1, s1, u0], [f1, s1, u1], [f1, s0, u1]]], [[-1, 0, 0], [[f0, s0, u0], [f0, s0, u1], [f0, s1, u1], [f0, s1, u0]]], [[0, 1, 0], [[f0, s1, u0], [f0, s1, u1], [f1, s1, u1], [f1, s1, u0]]], [[0, -1, 0], [[f0, s0, u0], [f1, s0, u0], [f1, s0, u1], [f0, s0, u1]]], [[0, 0, 1], [[f0, s0, u1], [f1, s0, u1], [f1, s1, u1], [f0, s1, u1]]], [[0, 0, -1], [[f0, s0, u0], [f0, s1, u0], [f1, s1, u0], [f1, s0, u0]]]];
+      for (const [n, q] of faces) { const v = q.map(p => c(...p, n)); tri(v[0], v[1], v[2], cor, true); tri(v[0], v[2], v[3], cor, true); }
+    };
+    const perfilCorpo = f => f > 7.6 ? 1.95 : f > 5.5 ? 1.95 : f > -1 ? 1.95 - (5.5 - f) * 0.015 : Math.max(0.35, 1.85 - (-1 - f) * 0.135);
+    const secs = [];
+    for (let f = -12; f <= 8.6; f += 0.5) { const r = perfilCorpo(f); secs.push({ f, ry: r, rz: r * (f < -1 ? 1.15 : 1.08), u: f < -1 ? (-1 - f) * 0.06 : 0 }); }
+    loft(secs, sec => sec.f > 6.4 ? (sec.f > 8.1 ? "cromo" : "motor") : "corpo");
+    loft([{ f: 8.6, ry: 1.2, rz: 1.2, u: 0 }, { f: 9.4, ry: 0.9, rz: 0.9, u: 0 }, { f: 9.9, ry: 0.15, rz: 0.15, u: 0 }], "cromo", 12);
+    asa(0.4, 5.0, 14, 3.5, 0.55, as => as > 10.2 && as < 11.2 ? "faixa" : "asa");
+    asa(0.0, 4.4, 12.8, -1.3, 0.5, as => as > 9.2 && as < 10.2 ? "faixa" : "asa");
+    asa(-12.4, -9.2, 5.6, 0.75, 0.35, "asa");
+    for (const lado of [1, -1]) {
+      for (let k = 0; k < 6; k++) {
+        const fa = -12.6 + k * 0.6, fb = fa + 0.6, ua = 0.9, hA = 5.2 - (fa + 12.6) * 1.05, hB = 5.2 - (fb + 12.6) * 1.05;
+        const n = [0, lado, 0], sv = 0.22 * lado;
+        tri(P(fa, sv, ua, n), P(fb, sv, ua, n), P(fb, sv, ua + Math.max(0.2, hB), n), k === 0 ? "faixa" : "corpo");
+        tri(P(fa, sv, ua, n), P(fb, sv, ua + Math.max(0.2, hB), n), P(fa, sv, ua + Math.max(0.2, hA), n), k === 0 ? "faixa" : "corpo");
+      }
     }
-    return v;
+    for (const s of [-8.4, 8.4]) { caixa(2.3, 2.7, s - 0.15, s + 0.15, -1.2, 3.5, "haste"); caixa(3.3, 3.7, s - 0.15, s + 0.15, -1.2, 3.5, "haste"); }
+    for (const s of [-1.6, 1.6]) caixa(2.6, 2.9, s - 0.12, s + 0.12, 1.5, 3.5, "haste");
+    caixa(-3.6, -0.9, -1.25, 1.25, 1.55, 1.75, "cabine");
+    loft([{ f: -2.75, ry: 0.01, rz: 0.01, u: 2.0 }, { f: -2.6, ry: 0.55, rz: 0.55, u: 2.15 }, { f: -2.2, ry: 0.7, rz: 0.7, u: 2.45 }, { f: -1.8, ry: 0.55, rz: 0.55, u: 2.6 }, { f: -1.65, ry: 0.01, rz: 0.01, u: 2.6 }], "piloto", 12);
+    caixa(-1.7, -1.55, -0.45, 0.45, 2.45, 2.65, "oculos");
+    caixa(-0.9, -0.7, -1.05, 1.05, 1.6, 2.5, "vidro");
+    for (const s of [-2.8, 2.8]) {
+      caixa(2.9, 3.2, s * 0.7 - 0.1, s * 0.7 + 0.1, -3.0, -1.5, "haste");
+      const roda = []; for (let i = 0; i <= 8; i++) { const a = i / 8; roda.push({ f: 0, ry: 0, rz: 0, u: 0, a }); }
+      const lados = 14;
+      for (let i = 0; i < lados; i++) {
+        const a1 = i / lados * Math.PI * 2, a2 = (i + 1) / lados * Math.PI * 2, r = 0.85, cf = 3.05, cu = -3.35;
+        for (const sv of [s - 0.3, s + 0.3]) tri(P(cf, sv, cu, [0, Math.sign(sv - s), 0]), P(cf + Math.cos(a1) * r, sv, cu + Math.sin(a1) * r, [0, Math.sign(sv - s), 0]), P(cf + Math.cos(a2) * r, sv, cu + Math.sin(a2) * r, [0, Math.sign(sv - s), 0]), "roda");
+        const n1 = [Math.cos(a1), 0, Math.sin(a1)], n2 = [Math.cos(a2), 0, Math.sin(a2)];
+        tri(P(cf + n1[0] * r, s - 0.3, cu + n1[2] * r, n1), P(cf + n2[0] * r, s - 0.3, cu + n2[2] * r, n2), P(cf + n2[0] * r, s + 0.3, cu + n2[2] * r, n2), "roda");
+        tri(P(cf + n1[0] * r, s - 0.3, cu + n1[2] * r, n1), P(cf + n2[0] * r, s + 0.3, cu + n2[2] * r, n2), P(cf + n1[0] * r, s + 0.3, cu + n1[2] * r, n1), "roda");
+      }
+    }
+    return tris;
   })();
+  function lamina(al) {
+    const tris = [], ca = Math.cos(al), sa = Math.sin(al);
+    for (const sinal of [1, -1]) {
+      const q = [[0.6, 0.35], [5.4, 0.42], [5.6, 0], [5.4, -0.42], [0.6, -0.35]].map(([r, w]) => [r * sinal, w]);
+      const pt = ([r, w]) => ({ p: [10.0 * ESC_AV, (ca * r - sa * w) * ESC_AV, (sa * r + ca * w) * ESC_AV], n: [1, 0, 0] });
+      for (let i = 1; i < q.length - 1; i++) tris.push({ v: [pt(q[0]), pt(q[i]), pt(q[i + 1])], cor: "helice", plano: true });
+    }
+    return tris;
+  }
   function rot(p, th, fi) {
     const s1 = p[1] * Math.cos(fi) - p[2] * Math.sin(fi), u1 = p[1] * Math.sin(fi) + p[2] * Math.cos(fi);
     return [p[0] * Math.cos(th) - s1 * Math.sin(th), p[0] * Math.sin(th) + s1 * Math.cos(th), u1];
   }
-  const AVN = 76, AVC = 38, AVCY = 42;
+  const AVN = 160, AVC = 80, AVCY = 86;
   const cacheAviao = new Map(), cacheSombra = new Map();
   function spriteAviao(ith, ifi, ihe, sombra) {
     const chave = sombra ? ith : ith + "," + ifi + "," + ihe;
     const cache = sombra ? cacheSombra : cacheAviao;
     if (cache.has(chave)) return cache.get(chave);
-    const th = ith / 64 * Math.PI * 2, fi = ifi * 0.11, al = ihe / 3 * Math.PI;
-    const pts = modeloAviao.slice();
-    if (!sombra) for (let r = -5; r <= 5; r += 0.35) { if (Math.abs(r) < 0.5) continue; pts.push({ f: 9.2, s: Math.cos(al) * r, u: Math.sin(al) * r, c: "helice", n: [1, 0, 0] }); }
-    const cor = new Float32Array(AVN * AVN * 3), prof = new Float32Array(AVN * AVN).fill(-1e9);
-    for (const p of pts) {
-      const [gr, gd, u] = rot([p.f, p.s, sombra ? 0 : p.u], th, sombra ? 0 : fi);
-      const x = Math.round(AVC + gr), y = Math.round(AVCY - gd * 0.5 - (sombra ? 0 : u * 0.866));
-      if (x < 0 || y < 0 || x >= AVN || y >= AVN) continue;
-      const z = -0.866 * gd + 0.5 * u, i = y * AVN + x;
-      if (z <= prof[i]) continue;
-      prof[i] = z;
-      if (sombra) continue;
-      let n = rot(p.n, th, fi);
-      const nm = Math.hypot(...n) || 1; n = n.map(q => q / nm);
-      let fator = 1;
-      if (n[0] * CAM[0] + n[1] * CAM[1] + n[2] * CAM[2] < 0) { n = n.map(q => -q); fator = 0.72; }
-      const d = Math.max(0, n[0] * LUZ[0] + n[1] * LUZ[1] + n[2] * LUZ[2]);
-      const b = Math.round((0.52 + 0.62 * d) * fator * 6) / 6;
-      const base = PALETA[p.c];
-      cor[i * 3] = base[0] * b; cor[i * 3 + 1] = base[1] * b; cor[i * 3 + 2] = base[2] * b;
-    }
-    const c = document.createElement("canvas"); c.width = AVN; c.height = AVN;
-    const x = c.getContext("2d"), img = x.createImageData(AVN, AVN), d = img.data;
-    const cheio = i => prof[i] > -1e8;
-    for (let y = 0; y < AVN; y++) for (let xx = 0; xx < AVN; xx++) {
-      const i = y * AVN + xx, o = i * 4;
-      if (cheio(i)) {
-        if (sombra) { d[o + 3] = 255; continue; }
-        let r = cor[i * 3], g = cor[i * 3 + 1], bb = cor[i * 3 + 2];
-        const viz = [i - 1, i + 1, i - AVN, i + AVN].filter(j => j >= 0 && j < AVN * AVN);
-        if (viz.some(j => cheio(j) && prof[j] - prof[i] > 1.6)) { r *= 0.62; g *= 0.62; bb *= 0.62; }
-        d[o] = Math.min(255, r); d[o + 1] = Math.min(255, g); d[o + 2] = Math.min(255, bb); d[o + 3] = 255;
-      } else if (!sombra) {
-        const viz = [xx > 0 ? i - 1 : -1, xx < AVN - 1 ? i + 1 : -1, i - AVN, i + AVN].filter(j => j >= 0 && j < AVN * AVN);
-        if (viz.some(cheio)) { d[o] = 58; d[o + 1] = 14; d[o + 2] = 16; d[o + 3] = 255; }
+    const th = ith / 64 * Math.PI * 2, fi = sombra ? 0 : ifi * 0.11;
+    const tris = sombra ? malhaAviao : malhaAviao.concat(lamina(ihe / 3 * Math.PI + 0.3));
+    const N = AVN, buf = new Float32Array(N * N * 3), prof = new Float32Array(N * N).fill(-1e9);
+    for (const tr of tris) {
+      const vs = tr.v.map(v => {
+        const [gr, gd, u] = rot(v.p, th, fi);
+        const uu = sombra ? 0 : u;
+        return { x: AVC + gr / TEXEL * 1, y: AVCY - (gd * 0.5 + uu * 0.866) / TEXEL, z: -0.866 * gd + 0.5 * uu, n: rot(v.n, th, fi) };
+      });
+      const [A, B, C] = vs;
+      const area = (B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y);
+      if (Math.abs(area) < 1e-6) continue;
+      const x0 = Math.max(0, Math.floor(Math.min(A.x, B.x, C.x))), x1 = Math.min(N - 1, Math.ceil(Math.max(A.x, B.x, C.x)));
+      const y0 = Math.max(0, Math.floor(Math.min(A.y, B.y, C.y))), y1 = Math.min(N - 1, Math.ceil(Math.max(A.y, B.y, C.y)));
+      const base = PALETA[tr.cor];
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const px = x + 0.5, py = y + 0.5;
+        const w0 = ((B.x - px) * (C.y - py) - (C.x - px) * (B.y - py)) / area;
+        const w1 = ((C.x - px) * (A.y - py) - (A.x - px) * (C.y - py)) / area;
+        const w2 = 1 - w0 - w1;
+        if (w0 < -0.001 || w1 < -0.001 || w2 < -0.001) continue;
+        const z = w0 * A.z + w1 * B.z + w2 * C.z, i = y * N + x;
+        if (z <= prof[i]) continue;
+        prof[i] = z;
+        if (sombra) continue;
+        let n = [0, 1, 2].map(c => w0 * A.n[c] + w1 * B.n[c] + w2 * C.n[c]);
+        const m = Math.hypot(...n) || 1; n = n.map(q => q / m);
+        let costas = 1;
+        if (n[0] * CAM[0] + n[1] * CAM[1] + n[2] * CAM[2] < 0) { n = n.map(q => -q); costas = 0.8; }
+        const dif = Math.max(0, n[0] * LUZ[0] + n[1] * LUZ[1] + n[2] * LUZ[2]);
+        const esp = Math.pow(Math.max(0, n[0] * MEIO[0] + n[1] * MEIO[1] + n[2] * MEIO[2]), tr.cor === "cromo" || tr.cor === "vidro" ? 30 : 14) * (tr.cor === "cabine" || tr.cor === "roda" ? 0.15 : 0.55);
+        const luz = (0.4 + 0.75 * dif) * costas;
+        buf[i * 3] = base[0] * luz + 255 * esp; buf[i * 3 + 1] = base[1] * luz + 235 * esp; buf[i * 3 + 2] = base[2] * luz + 215 * esp;
       }
+    }
+    const c = document.createElement("canvas"); c.width = N; c.height = N;
+    const x = c.getContext("2d"), img = x.createImageData(N, N), d = img.data;
+    const cheio = i => i >= 0 && i < N * N && prof[i] > -1e8;
+    for (let y = 0; y < N; y++) for (let xx = 0; xx < N; xx++) {
+      const i = y * N + xx, o = i * 4;
+      if (!cheio(i)) continue;
+      if (sombra) { d[o + 3] = 255; continue; }
+      let f = 1;
+      const viz = [xx > 0 ? i - 1 : -1, xx < N - 1 ? i + 1 : -1, i - N, i + N];
+      if (viz.some(j => !cheio(j))) f = 0.72;
+      else if (viz.some(j => prof[j] - prof[i] > 2.2)) f = 0.8;
+      const q = v => Math.min(255, Math.round(v * f / 8) * 8);
+      d[o] = q(buf[i * 3]); d[o + 1] = q(buf[i * 3 + 1]); d[o + 2] = q(buf[i * 3 + 2]); d[o + 3] = 255;
     }
     x.putImageData(img, 0, 0);
     cache.set(chave, c);
@@ -1355,11 +1416,11 @@
     const z1 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(vida.w, vida.h));
     const cx = (z0.x + z1.x) / 2, cy = (z0.y + z1.y) / 2, raio = Math.hypot(z1.x - z0.x, z1.y - z0.y) * 0.62;
     const lado = Math.random() < 0.5 ? -1 : 1;
-    const x = cx + lado * raio, y = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.5;
+    const x = cx + lado * ((z1.x - z0.x) / 2 + 260), y = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.5;
     const tx = cx - lado * (z1.x - z0.x) * 0.15, ty = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.4;
     const th = Math.atan2(-(ty - y) / 0.5, tx - x), base = lado < 0 ? 0 : Math.PI;
     const rastro = [];
-    for (let i = 160; i > 0; i--) rastro.push({ x: x - Math.cos(th) * i * 4 / k, y: y + Math.sin(th) * 0.5 * i * 4 / k });
+    for (let i = 400; i > 0; i--) rastro.push({ x: x - Math.cos(th) * i * 3, y: y + Math.sin(th) * 0.5 * i * 3 });
     return { x, y, th, base, w: 0, fi: 0, tx, ty, passou: false, menor: 1e9, semente: Math.random() * 10, rastro, fumaca: [], proxFumaca: 0, he: 0, t: 0, inverte: null };
   }
   function desenharAviao(g, gm, t, dt, k, tela, anima) {
@@ -1367,55 +1428,56 @@
     const a = aviao.ativo;
     aviao.caixa = null;
     if (!a) return;
-    const s = Math.round(Math.max(3, Math.min(4.5, 2.6 + 2.2 * k)) * 2) / 2;
-    const vImg = 92 / k;
+    const esc = TEXEL * k;
+    const vImg = 85;
     if (anima) {
       a.t += dt;
-      const dx = a.tx - a.x, dy = a.ty - a.y, dist = Math.hypot(dx, dy) * k;
-      if (dist < a.menor) a.menor = dist; else if (dist > a.menor + 40) a.passou = true;
-      let wDes = 0.32 * Math.sin(a.t * 0.27 + a.semente) + 0.12 * Math.sin(a.t * 0.71 + a.semente * 2);
+      const dx = a.tx - a.x, dy = a.ty - a.y, dist = Math.hypot(dx, dy);
+      if (dist < a.menor) a.menor = dist; else if (dist > a.menor + 60) a.passou = true;
+      let wDes = 0.22 * Math.sin(a.t * 0.23 + a.semente) + 0.09 * Math.sin(a.t * 0.61 + a.semente * 2);
       if (!a.passou) {
         let dif = Math.atan2(-dy / 0.5, dx) - a.th;
         while (dif > Math.PI) dif -= 2 * Math.PI; while (dif < -Math.PI) dif += 2 * Math.PI;
-        wDes = wDes * 0.4 + Math.max(-0.45, Math.min(0.45, dif * 0.9));
+        wDes = wDes * 0.4 + Math.max(-0.3, Math.min(0.3, dif * 0.7));
       }
       let desvio = a.th - a.base;
       while (desvio > Math.PI) desvio -= 2 * Math.PI; while (desvio < -Math.PI) desvio += 2 * Math.PI;
       if (Math.abs(desvio) > 0.3) wDes -= (desvio - Math.sign(desvio) * 0.3) * 1.6;
-      a.w += (wDes - a.w) * Math.min(1, dt * 1.5);
+      a.w += (wDes - a.w) * Math.min(1, dt * 1.2);
       a.th += a.w * dt;
-      a.fi += (Math.max(-0.42, Math.min(0.42, -a.w * 1.25)) - a.fi) * Math.min(1, dt * 3);
+      a.fi += (Math.max(-0.44, Math.min(0.44, -a.w * 1.5)) - a.fi) * Math.min(1, dt * 2.5);
       a.x += Math.cos(a.th) * vImg * dt; a.y -= Math.sin(a.th) * 0.5 * vImg * dt;
       a.rastro.push({ x: a.x, y: a.y });
-      if (a.rastro.length > 1400) a.rastro.splice(0, a.rastro.length - 1400);
+      if (a.rastro.length > 2400) a.rastro.splice(0, a.rastro.length - 2400);
       a.he = (a.he + 1) % 3;
       a.proxFumaca -= dt;
       if (a.proxFumaca <= 0) {
-        a.proxFumaca = 0.07;
-        const cauda = rot([-12, 0, 0], a.th, 0);
-        a.fumaca.push({ x: a.x + cauda[0] * s / k, y: a.y - cauda[1] * 0.5 * s / k, nasc: t, sem: Math.random() });
+        a.proxFumaca = 0.06;
+        const cauda = rot([-12.5 * ESC_AV, 0, 0], a.th, 0);
+        a.fumaca.push({ x: a.x + cauda[0], y: a.y - cauda[1] * 0.5, nasc: t, sem: Math.random() });
       }
     }
-    a.fumaca = a.fumaca.filter(p => t - p.nasc < 1600);
+    a.fumaca = a.fumaca.filter(p => t - p.nasc < 1800);
+    const altImg = 170 + Math.sin(a.t * 1.1) * 6;
+    const alt = altImg * k;
     const [sx0, sy0] = tela(a.x, a.y);
-    const alt = Math.round(s * 30 + Math.sin(a.t * 1.3) * s);
     const distTela = Math.hypot(sx0 - vida.w / 2, sy0 - vida.h / 2);
-    if (a.passou && distTela > Math.hypot(vida.w, vida.h) * 0.75 || a.t > 60) { aviao.ativo = null; aviao.proximo = t + 22000 + Math.random() * 20000; return; }
+    if ((a.passou && distTela > Math.hypot(vida.w, vida.h) * 0.75) || a.t > 150) { aviao.ativo = null; aviao.proximo = t + 22000 + Math.random() * 20000; return; }
+    if (sx0 < -900 * k - 200 || sx0 > vida.w + 900 * k + 200 || sy0 < -600 || sy0 > vida.h + 600) { return; }
 
     const ith = ((Math.round(a.th / (Math.PI * 2) * 64) % 64) + 64) % 64;
     const ifi = Math.max(-4, Math.min(4, Math.round(a.fi / 0.11)));
-    const SW = AVN * s;
-    const pos = (x, y, ox, oy) => [Math.round(x - ox * s), Math.round(y - oy * s)];
-    const sombraX = sx0 + alt * 0.28, sombraY = sy0;
+    const SW = AVN * esc;
+    const nitido = esc >= 1.2;
 
     const pontos = [];
-    const caudaL = rot([-12.5, 0, 0], a.th, a.fi);
-    pontos.push([sx0 + caudaL[0] * s, sy0 - alt - (caudaL[1] * 0.5 + caudaL[2] * 0.866) * s]);
+    const caudaL = rot([-12.8 * ESC_AV, 0, 0], a.th, a.fi);
+    pontos.push([sx0 + caudaL[0] * k, sy0 - alt - (caudaL[1] * 0.5 + caudaL[2] * 0.866) * k]);
     const raioCauda = Math.hypot(pontos[0][0] - sx0, pontos[0][1] - (sy0 - alt));
     for (let i = a.rastro.length - 1; i >= 0; i--) { const [x, y] = tela(a.rastro[i].x, a.rastro[i].y); if (pontos.length === 1 && Math.hypot(x - sx0, y - sy0) <= raioCauda) continue; pontos.push([x, y - alt]); }
-    const corda = 26 * s, sf = Math.max(2, Math.round(s * 0.72)), larg = texturaFaixa.width * sf, H = texturaFaixa.height * sf;
+    const sf = 1.7 * k, corda = 80 * k, larg = texturaFaixa.width * sf, H = texturaFaixa.height * sf;
     const amostrar = (() => {
-      let acum = 0, j = 0;
+      let j = 0;
       const dists = [0];
       for (let i = 1; i < pontos.length; i++) dists.push(dists[i - 1] + Math.hypot(pontos[i][0] - pontos[i - 1][0], pontos[i][1] - pontos[i - 1][1]));
       return d => { while (j < dists.length - 2 && dists[j + 1] < d) j++; const seg = dists[j + 1] - dists[j] || 1, f = Math.min(1, Math.max(0, (d - dists[j]) / seg)); return [pontos[j][0] + (pontos[j + 1][0] - pontos[j][0]) * f, pontos[j][1] + (pontos[j + 1][1] - pontos[j][1]) * f]; };
@@ -1424,33 +1486,34 @@
     for (let c = 0; c <= W; c++) cols.push(amostrar(corda + c * sf));
     const dirX = cols[W][0] - cols[0][0];
     if (a.inverte === null || Math.abs(dirX) > larg * 0.3) a.inverte = dirX < 0;
-    const onda = c => Math.round(Math.sin(a.t * 7.5 - c * 0.32) * s * 1.4 * (0.25 + c / W)) ;
+    const onda = c => Math.sin(a.t * 7 - c * 0.3) * 3.2 * k * (0.25 + c / W);
 
     g.save();
-    g.globalAlpha = 0.2; g.fillStyle = "#000";
-    for (let c = 0; c < W; c += 2) { const [x, y] = cols[c]; g.fillRect(Math.round(x + alt * 0.28), Math.round(y + alt + H * 0.15), Math.ceil(sf * 2) + 1, Math.ceil(sf * 1.5)); }
-    g.globalAlpha = 0.26; g.imageSmoothingEnabled = false;
+    g.imageSmoothingEnabled = !nitido;
+    g.globalAlpha = 0.16; g.fillStyle = "#000";
+    for (let c = 0; c < W; c += 2) { const [x, y] = cols[c]; g.fillRect(x + alt * 0.3, y + alt + H * 0.2, sf * 2.4, Math.max(1, 3 * k)); }
+    g.globalAlpha = 0.24;
     const somb = spriteAviao(ith, 0, 0, true);
-    const [ax, ay] = pos(sombraX, sombraY, AVC, AVCY);
-    g.drawImage(somb, ax, ay, SW, SW);
+    g.drawImage(somb, Math.round(sx0 + alt * 0.3 - AVC * esc), Math.round(sy0 - AVCY * esc), SW, SW);
     g.restore();
 
     gm.save();
-    gm.imageSmoothingEnabled = false;
+    gm.imageSmoothingEnabled = !nitido;
+    const cel = Math.max(1, 1.5 * k);
     for (const p of a.fumaca) {
-      const idade = (t - p.nasc) / 1600, [x, y] = tela(p.x, p.y);
-      const r = Math.max(1, Math.round((1.4 + idade * 2.6) * (0.8 + p.sem * 0.4)));
-      const cx = Math.round(x), cy = Math.round(y - alt - idade * 6 * s);
-      gm.globalAlpha = 0.85 * (1 - idade);
+      const idade = (t - p.nasc) / 1800, [x, y] = tela(p.x, p.y);
+      const r = Math.max(1, Math.round((2.2 + idade * 4.5) * (0.8 + p.sem * 0.4)));
+      const cx = x, cy = y - alt + idade * 10 * k;
+      gm.globalAlpha = 0.8 * (1 - idade) ** 1.3;
       for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
-        if (i * i + j * j > r * r + 0.5) continue;
-        gm.fillStyle = j > r * 0.35 ? "#c9ced6" : (i + j < -r * 0.6 ? "#ffffff" : "#eef1f5");
-        gm.fillRect(cx + i * s, cy + j * s, s, s);
+        if (i * i + j * j > r * r + 0.6) continue;
+        gm.fillStyle = j > r * 0.3 ? "#c4c9d1" : (i + j < -r * 0.5 ? "#ffffff" : "#eceff3");
+        gm.fillRect(cx + i * cel, cy + j * cel, cel + 0.3, cel + 0.3);
       }
     }
     gm.globalAlpha = 1;
     const topo = c => [cols[c][0], cols[c][1] + onda(c) - H * 0.55];
-    gm.strokeStyle = "rgba(38,34,30,0.75)"; gm.lineWidth = 1;
+    gm.strokeStyle = "rgba(38,34,30,0.7)"; gm.lineWidth = Math.max(0.6, k);
     gm.beginPath();
     gm.moveTo(pontos[0][0], pontos[0][1]); gm.lineTo(topo(0)[0], topo(0)[1]);
     gm.moveTo(pontos[0][0], pontos[0][1]); gm.lineTo(topo(0)[0], topo(0)[1] + H);
@@ -1458,23 +1521,21 @@
     for (let c = 0; c < W; c++) {
       const [x, y] = topo(c), [x2] = topo(c + 1);
       const src = a.inverte ? W - 1 - c : c;
-      const cw = Math.max(1, Math.round(Math.abs(x2 - x)));
-      const xx = Math.round(Math.min(x, x2)), yy = Math.round(y);
-      gm.fillStyle = "rgba(40,20,14,0.9)"; gm.fillRect(xx, yy - 1, Math.ceil(cw), Math.round(H) + 2);
-      gm.drawImage(texturaFaixa, src, 0, 1, texturaFaixa.height, xx, yy, Math.ceil(cw), Math.round(H));
-      const incl = Math.cos(a.t * 7.5 - c * 0.32);
-      const nivel = Math.round(incl * 2) / 2;
-      if (nivel > 0) { gm.fillStyle = `rgba(60,20,10,${0.12 * nivel})`; gm.fillRect(xx, yy, Math.ceil(cw), Math.round(H)); }
-      else if (nivel < 0) { gm.fillStyle = `rgba(255,255,255,${-0.1 * nivel})`; gm.fillRect(xx, yy, Math.ceil(cw), Math.round(H)); }
+      const cw = Math.max(0.6, Math.abs(x2 - x)) + 0.4;
+      const xx = Math.min(x, x2);
+      gm.fillStyle = "rgba(60,26,16,0.85)"; gm.fillRect(xx, y - k, cw, H + 2 * k);
+      gm.drawImage(texturaFaixa, src, 0, 1, texturaFaixa.height, xx, y, cw, H);
+      const incl = Math.cos(a.t * 7 - c * 0.3);
+      if (incl > 0) { gm.fillStyle = `rgba(70,30,14,${0.16 * incl})`; gm.fillRect(xx, y, cw, H); }
+      else { gm.fillStyle = `rgba(255,255,255,${-0.12 * incl})`; gm.fillRect(xx, y, cw, H); }
     }
     const [px0, py0] = topo(0);
-    gm.fillStyle = "#5a3a20"; gm.fillRect(Math.round(px0) - 1, Math.round(py0) - s, Math.max(2, s * 0.7), Math.round(H) + 2 * s);
+    gm.fillStyle = "#5a3a20"; gm.fillRect(px0 - k, py0 - 2 * k, Math.max(1, 1.6 * k), H + 4 * k);
     const spr = spriteAviao(ith, ifi, a.he, false);
-    const [bx, by] = pos(sx0, sy0 - alt, AVC, AVCY);
-    gm.drawImage(spr, bx, by, SW, SW);
+    gm.drawImage(spr, Math.round(sx0 - AVC * esc), Math.round(sy0 - alt - AVCY * esc), SW, SW);
     gm.restore();
 
-    const xs = cols.map(c => c[0]).concat([sx0 - 16 * s, sx0 + 16 * s]), ys = cols.map(c => c[1]).concat([sy0 - alt - 14 * s, sy0 - alt + 10 * s]);
+    const xs = cols.map(c => c[0]).concat([sx0 - 40 * esc, sx0 + 40 * esc]), ys = cols.map(c => c[1]).concat([sy0 - alt - 40 * esc, sy0 - alt + 30 * esc]);
     aviao.caixa = { x0: Math.min(...xs) - 6, x1: Math.max(...xs) + 6, y0: Math.min(...ys) - H, y1: Math.max(...ys) + H };
   }
 
