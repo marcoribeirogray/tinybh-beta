@@ -101,15 +101,22 @@
   .aviso-plano { padding: 10px 12px; border-radius: 6px; background: var(--chao); font-size: 12px; color: var(--apagado); line-height: 1.45; }
   .aviso-plano b { color: var(--texto); }
 
-  .pin { position: relative; width: 14px; height: 14px; transform: translate(-50%, -100%); cursor: pointer; }
-  .pin span { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 12px; height: 12px; border-radius: 3px 3px 3px 0; rotate: -45deg; border: 2px solid #12161d; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
-  .pin.destaque { width: 26px; height: 26px; }
-  .pin.destaque span { width: 20px; height: 20px; }
-  .pin.destaque::after { content: "★"; position: absolute; left: 50%; top: 3px; transform: translateX(-50%); font-size: 12px; color: #1b1009; pointer-events: none; }
-  .pin.ativo span { outline: 3px solid var(--texto); outline-offset: 1px; }
-  .pin.oculto { visibility: hidden !important; pointer-events: none; }
-  .pin .rotulo { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); white-space: nowrap; background: var(--painel); border: 1px solid var(--borda); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; pointer-events: none; }
-  .pin .num { position: absolute; left: 50%; top: -2px; transform: translateX(-50%); font-family: var(--fonte-titulo); font-size: 10px; color: #1f1802; pointer-events: none; }
+  .pin { position: relative; transform: translate(-50%, -100%); cursor: pointer; line-height: 0; }
+  .pin img { width: 32px; height: 40px; image-rendering: pixelated; display: block; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4)); }
+  .pin.ativo img { transform: translateY(-4px); }
+  .pin.oculto, .pin.agrupado { visibility: hidden !important; pointer-events: none; }
+  .pin .rotulo { display: none; position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap; background: var(--painel); border: 1px solid var(--borda); padding: 3px 7px; font-size: 11px; font-weight: 600; line-height: 1.3; pointer-events: none; }
+  .pin:hover .rotulo, .pin.ativo .rotulo { display: block; }
+  .pin.destaque:hover .rotulo, .pin.destaque.ativo .rotulo { display: none; }
+  .placa { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); background: #fff3d6; color: #2a1a0e; font-family: var(--fonte-titulo); font-size: 10px; line-height: 1; padding: 5px 7px 4px; white-space: nowrap; box-shadow: 0 0 0 2px #2a1a0e, 0 0 0 4px var(--ipe), 0 0 0 6px #2a1a0e; animation: balanco 2.4s steps(2, end) infinite; pointer-events: none; }
+  .placa::after { content: ""; position: absolute; left: 50%; top: calc(100% + 6px); width: 4px; height: 6px; background: #2a1a0e; transform: translateX(-50%); }
+  .placa b { color: #c4521f; }
+  @keyframes balanco { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
+  .pin .num { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); font-family: var(--fonte-titulo); font-size: 11px; line-height: 1; background: var(--ipe); color: #1f1802; padding: 2px 4px; box-shadow: 0 0 0 2px #1f1802; pointer-events: none; }
+  .grupo-pins { position: relative; transform: translate(-50%, -50%); width: 34px; height: 30px; background: #fff3d6; box-shadow: 0 0 0 2px #2a1a0e, 0 0 0 4px var(--telha), 0 0 0 6px #2a1a0e, 0 6px 0 4px rgba(0, 0, 0, 0.35); cursor: pointer; }
+  .grupo-pins span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--fonte-titulo); font-size: 13px; line-height: 1; color: #2a1a0e; }
+  .grupo-pins:hover { background: #ffe6b0; }
+  #mapa.longe .placa { display: none; }
   .casa-pin { width: 22px; height: 22px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--azul); border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(90, 169, 230, 0.25); }
   .raio { border: 2px dashed rgba(90, 169, 230, 0.85); background: rgba(90, 169, 230, 0.08); border-radius: 50%; pointer-events: none; box-sizing: border-box; }
 
@@ -128,7 +135,7 @@
     .creditos { display: none; }
   }
   .alca { display: none; width: 40px; height: 4px; border-radius: 2px; background: var(--borda); margin: 0 auto; border: 0; padding: 0; cursor: pointer; }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { *, .placa { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
@@ -211,7 +218,7 @@
     animationTime: 0.9,
     visibilityRatio: 0.6,
     minZoomImageRatio: 0.6,
-    maxZoomPixelRatio: 2.4,
+    maxZoomPixelRatio: 1,
     imageSmoothingEnabled: false,
     gestureSettingsMouse: { clickToZoom: false, dblClickToZoom: true },
     gestureSettingsTouch: { clickToZoom: false, dblClickToZoom: true },
@@ -263,15 +270,83 @@
     });
   }
 
+  const CORES = { comer: "#e8744c", compras: "#a98be8", saude: "#e86a9e", servicos: "#5aa9e6", cultura: "#5fbf6a", turismo: "#f2c230" };
+  const ICONES = {
+    garfo: ["#.#.#..#.", "#.#.#.##.", "#.#.#.##.", "#####.##.", ".###..##.", "..#...##.", "..#....#.", "..#....#.", "..#....#."],
+    cruz: ["...###...", "...###...", "...###...", "#########", "#########", "#########", "...###...", "...###...", "...###..."],
+    xicara: [".#.#.#...", "..#.#.#..", ".........", "#######..", "#######.#", "#######.#", "#######..", ".#####...", "........."],
+    caneca: ["#######..", "#.#.#.#..", "#######..", "#######.#", "#######.#", "#######.#", "#######..", "#######..", "#######.."],
+    sacola: ["...###...", "..#...#..", "..#...#..", "#########", "#########", "#########", "#########", "#########", "#########"],
+    pao: [".........", "..#####..", ".#.#.#.#.", "#########", "#########", "#########", ".#######.", ".........", "........."],
+    banco: ["....#....", "..#####..", "#########", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "#########", "#########"],
+    maleta: [".........", "...###...", "..#...#..", "#########", "#########", "####.####", "#########", "#########", "........."],
+    carro: [".........", "..#####..", ".#.#.#.#.", "#########", "#########", "#########", ".##...##.", ".##...##.", "........."],
+    arvore: ["...###...", ".#######.", "#########", "#########", ".#######.", "...###...", "....#....", "....#....", "...###..."],
+    igreja: ["....#....", "...###...", "....#....", "...###...", "..#####..", ".#######.", ".##.#.##.", ".##.#.##.", ".#######."],
+    nota: ["...#####.", "...#####.", "...#...#.", "...#...#.", "...#...#.", ".###.###.", "####.####", ".##...##.", "........."],
+    cama: [".........", "#........", "#.##.....", "#.######.", "#########", "#########", "#.......#", "#.......#", "........."],
+    livro: [".........", "####.####", "#..#.#..#", "#..#.#..#", "#..#.#..#", "####.####", ".#######.", ".........", "........."],
+    estrela: ["....#....", "....#....", "...###...", "#########", ".#######.", "..#####..", "..##.##..", ".##...##.", ".#.....#."],
+    ponto: [".........", ".........", "...###...", "..#####..", "..#####..", "..#####..", "...###...", ".........", "........."]
+  };
+  const ICONE_POR_CATEGORIA = {
+    "Restaurantes": "garfo", "Lanchonetes": "garfo", "Cafés": "xicara", "Bares": "caneca", "Padarias": "pao",
+    "Açougues": "sacola", "Supermercados": "sacola", "Bebidas": "sacola", "Moda": "sacola", "Shoppings": "sacola",
+    "Papelarias": "sacola", "Informática": "sacola", "Pet shops": "sacola", "Beleza": "maleta", "Automotivo": "carro",
+    "Postos": "carro", "Bancos": "banco", "Farmácias": "cruz", "Hospitais": "cruz", "Clínicas": "cruz", "Dentistas": "cruz",
+    "Teatros": "nota", "Igrejas": "igreja", "Parques": "arvore", "Educação": "livro", "Hospedagem": "cama"
+  };
+  const cacheSprite = new Map();
+  function clarear(hex, q) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v + (255 - v) * q));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  function sprite(icone, cor, dourado) {
+    const chave = icone + cor + dourado;
+    if (cacheSprite.has(chave)) return cacheSprite.get(chave);
+    const cv = document.createElement("canvas");
+    cv.width = 16; cv.height = 20;
+    const g = cv.getContext("2d");
+    const contorno = "#0f1318", aro = dourado ? "#f2c230" : contorno;
+    g.fillStyle = contorno; g.fillRect(0, 0, 16, 16);
+    g.fillStyle = aro; g.fillRect(1, 1, 14, 14);
+    g.fillStyle = cor; g.fillRect(dourado ? 2 : 1, dourado ? 2 : 1, dourado ? 12 : 14, dourado ? 12 : 14);
+    g.fillStyle = clarear(cor, 0.35); g.fillRect(dourado ? 2 : 1, dourado ? 2 : 1, dourado ? 12 : 14, 1);
+    for (let r = 0; r < 4; r++) {
+      const w = 8 - r * 2, x0 = 8 - w / 2;
+      g.fillStyle = contorno; g.fillRect(x0, 16 + r, w, 1);
+      if (w > 2) { g.fillStyle = r === 0 ? aro : cor; g.fillRect(x0 + 1, 16 + r, w - 2, 1); }
+    }
+    g.fillStyle = "#fff8ee";
+    ICONES[icone].forEach((linha, y) => { [...linha].forEach((ch, x) => { if (ch === "#") g.fillRect(3.5 + x, 3.5 + y, 1, 1); }); });
+    const out = cv.toDataURL();
+    cacheSprite.set(chave, out);
+    return out;
+  }
+  function aparencia(l) {
+    if (estado.modo === "turista") return { icone: l.turistico ? (ICONE_POR_CATEGORIA[l.categoria] || "estrela") : "estrela", cor: l.turistico ? CORES.cultura : CORES.turismo, dourado: false };
+    return { icone: ICONE_POR_CATEGORIA[l.categoria] || "ponto", cor: CORES[l.grupo], dourado: l.destaque };
+  }
+
   const elementosPin = new Map();
   function criarPins() {
     for (const l of lugares) {
       const el = document.createElement("div");
       el.className = "pin" + (l.destaque ? " destaque" : "");
-      el.title = l.nome;
-      const s = document.createElement("span");
-      s.style.background = l.selo && estado.modo === "turista" ? "var(--ipe)" : GRUPOS[l.grupo].cor;
-      el.appendChild(s);
+      el.setAttribute("aria-label", l.nome);
+      const img = document.createElement("img");
+      img.alt = "";
+      el.appendChild(img);
+      const rot = document.createElement("div");
+      rot.className = "rotulo"; rot.textContent = l.nome;
+      el.appendChild(rot);
+      if (l.destaque) {
+        const placa = document.createElement("div");
+        placa.className = "placa";
+        placa.innerHTML = `<b>★</b> ${esc(l.nome)}`;
+        el.appendChild(placa);
+      }
       viewer.addOverlay({ element: el, location: vp(l.px, l.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
       new OpenSeadragon.MouseTracker({ element: el, clickHandler: () => selecionar(l.chave, true) });
       elementosPin.set(l.chave, el);
@@ -284,18 +359,54 @@
     for (const l of lugares) {
       const el = elementosPin.get(l.chave);
       if (!el) continue;
+      const a = aparencia(l);
+      el.firstChild.src = sprite(a.icone, a.cor, a.dourado);
       el.classList.toggle("oculto", !ok.has(l.chave));
       el.classList.toggle("ativo", estado.selecionado === l.chave);
-      el.firstChild.style.background = estado.modo === "turista" ? (l.turistico ? "var(--verde)" : "var(--ipe)") : GRUPOS[l.grupo].cor;
+      const placa = el.querySelector(".placa");
+      if (placa) placa.hidden = estado.modo !== "morador";
       el.querySelector(".num")?.remove();
-      el.querySelector(".rotulo")?.remove();
       if (estado.modo === "turista" && numRoteiro.has(l.chave)) {
         const n = document.createElement("b"); n.className = "num"; n.textContent = numRoteiro.get(l.chave); el.appendChild(n);
-        el.firstChild.style.background = "var(--ipe)";
       }
-      if (estado.selecionado === l.chave) {
-        const r = document.createElement("div"); r.className = "rotulo"; r.textContent = l.nome; el.appendChild(r);
-      }
+    }
+    estado.listaVisivel = lista;
+    agrupar();
+  }
+
+  let overlaysGrupo = [];
+  function agrupar() {
+    for (const o of overlaysGrupo) viewer.removeOverlay(o);
+    overlaysGrupo = [];
+    for (const el of elementosPin.values()) el.classList.remove("agrupado");
+    const lista = estado.listaVisivel || [];
+    const zoomImg = viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
+    document.getElementById("mapa").classList.toggle("longe", zoomImg < 0.16);
+    if (zoomImg >= 0.24) return;
+    const celula = 110, baldes = new Map();
+    for (const l of lista) {
+      if (l.destaque && estado.modo === "morador") continue;
+      if (l.chave === estado.selecionado) continue;
+      if (estado.modo === "turista" && roteiro.some(r => r.chave === l.chave)) continue;
+      const p = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(l.px, l.py));
+      const k = Math.floor(p.x / celula) + "," + Math.floor(p.y / celula);
+      if (!baldes.has(k)) baldes.set(k, []);
+      baldes.get(k).push(l);
+    }
+    for (const grupo of baldes.values()) {
+      if (grupo.length < 2) continue;
+      for (const l of grupo) elementosPin.get(l.chave).classList.add("agrupado");
+      const mx = grupo.reduce((s, l) => s + l.px, 0) / grupo.length;
+      const my = grupo.reduce((s, l) => s + l.py, 0) / grupo.length;
+      const el = document.createElement("div");
+      el.className = "grupo-pins";
+      el.innerHTML = `<span>${grupo.length}</span>`;
+      if (grupo.length > 99) el.style.width = "42px";
+      el.title = `${grupo.length} lugares aqui. Clique para aproximar.`;
+      const alvo = vp(mx, my);
+      viewer.addOverlay({ element: el, location: alvo, placement: OpenSeadragon.Placement.CENTER, checkResize: false });
+      new OpenSeadragon.MouseTracker({ element: el, clickHandler: () => viewer.viewport.zoomTo(viewer.viewport.getZoom() * 2.4, alvo).panTo(alvo) });
+      overlaysGrupo.push(el);
     }
   }
 
@@ -399,8 +510,9 @@
     atualizar();
     if (voar) {
       const alvo = vp(l.px, l.py);
-      const zoomAlvo = Math.max(viewer.viewport.getZoom(), viewer.viewport.imageToViewportZoom(0.55));
-      viewer.viewport.panTo(alvo).zoomTo(zoomAlvo, alvo);
+      const zoomAlvo = Math.max(viewer.viewport.getZoom(), viewer.viewport.imageToViewportZoom(0.6));
+      viewer.viewport.zoomTo(zoomAlvo);
+      viewer.viewport.panTo(alvo);
     }
     document.getElementById("painel").classList.remove("recolhido");
   }
@@ -475,6 +587,8 @@
     salvarCasa();
     atualizar();
   });
+
+  viewer.addHandler("animation-finish", agrupar);
 
   viewer.addHandler("open", () => {
     criarPins();
