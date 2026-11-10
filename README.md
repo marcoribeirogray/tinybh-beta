@@ -16,7 +16,7 @@ Abra o link do GitHub Pages deste repositório e experimente:
 6. Trocar para "Bem-vindo, Turista" e ver o roteiro a pé.
 7. Tocar no clima (canto superior direito) e trocar entre clima ao vivo, chuva, tempestade, dia e noite.
 8. Passar o mouse pelo mapa e ver o efeito tilt-shift (desfoque nas bordas, foco onde o mouse está). Ajuste a força em ⚙ Configurações.
-9. Esperar o aviãozinho com a faixa "Anuncie aqui" e clicar nele.
+9. Esperar o aviãozinho (faixa "Anuncie aqui") e o helicóptero (faixa "Sua marca aqui") e clicar neles.
 10. Usar os cartões dos pontos turísticos (embaixo no computador, em cima no celular).
 11. Abrir ⚙ Configurações: minimapa, vida no mapa, contorno do bairro e idioma PT/EN.
 12. Atalhos: `/` busca, `M` minimapa, `B` contorno do bairro, `D` tilt-shift, `T` modo turista, `0` bairro inteiro, `+` e `−` zoom, `Esc` fecha.
