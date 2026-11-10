@@ -933,7 +933,8 @@
     vida.clarao = document.createElement("div"); vida.clarao.className = "camada-vida"; vida.clarao.id = "clarao";
     vida.tilts = [0, 1, 2].map(i => { const d = document.createElement("div"); d.className = "camada-vida tilt-camada"; d.dataset.n = i; return d; });
     vida.marcas = document.createElement("canvas"); vida.marcas.className = "camada-vida";
-    for (const el of [vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts, vida.marcas]) pai.insertBefore(el, depois);
+    for (const el of [vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts]) pai.insertBefore(el, depois);
+    pai.appendChild(vida.marcas);
     vida.ctx = vida.canvas.getContext("2d");
     vida.ctxL = vida.luzes.getContext("2d");
     vida.ctxM = vida.marcas.getContext("2d");
@@ -1243,76 +1244,238 @@
     vida.pai.style.setProperty("--foco", tiltEst.foco.toFixed(1) + "px");
   }
 
-  const AVIAO = [
-    "..........oo..........",
-    ".........oWWo.........",
-    "..ooooooooWWoooooooo..",
-    ".oWWWWWWWWWWWWWWWWWWo.",
-    "..ooooooooRRoooooooo..",
-    "o......ooRRRRoo.....pp",
-    "oRo..ooRRRRRRRRoooo.pp",
-    "oRRooRRRRRRRRRRRRRRoKp",
-    "oRRRRRRRRRRRRRRRRRRRRo",
-    ".oooRRRRRRRRRRRRRRRRo.",
-    "....ooooooooooooooo...",
-    "......oo......oo......"
-  ];
-  const aviao = { ativo: null, proximo: 4000, caixa: null };
-  function desenharAviao(g, gm, t, dt, k, tela, anima) {
-    if (!aviao.ativo && t > aviao.proximo && anima && vida.cond.chuva < 0.6) {
-      const z0 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(0, 0));
-      const z1 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(vida.w, vida.h));
-      const dir = Math.random() < 0.5 ? 1 : -1, larg = z1.x - z0.x;
-      const y = z0.y + (z1.y - z0.y) * (0.3 + Math.random() * 0.35);
-      aviao.ativo = { x: dir > 0 ? z0.x - larg * 0.25 : z1.x + larg * 0.25, y, dir, vy: (Math.random() - 0.5) * 0.12, fim: dir > 0 ? z1.x + larg * 0.6 : z0.x - larg * 0.6, fase: 0 };
+  const PALETA = { corpo: [206, 38, 36], asa: [222, 48, 40], nervura: [182, 30, 30], faixa: [246, 236, 214], motor: [74, 76, 86], haste: [236, 222, 190], cabine: [44, 32, 30], piloto: [238, 198, 158], vidro: [168, 214, 236], roda: [34, 34, 38], helice: [92, 70, 52] };
+  const LUZ = (() => { const v = [-0.38, -0.42, 0.82], m = Math.hypot(...v); return v.map(x => x / m); })();
+  const CAM = [0, -0.866, 0.5];
+  const modeloAviao = (() => {
+    const v = [], add = (f, s, u, c, n) => v.push({ f, s, u, c, n });
+    for (let f = -11.5; f <= 8.5; f += 0.4) {
+      const r = f >= -3 ? 1.75 : 1.75 - (-3 - f) * 0.14;
+      for (let a = 0; a < 6.283; a += 0.26) add(f, Math.cos(a) * r, Math.sin(a) * r * 1.08, f > 7 ? "motor" : "corpo", [0, Math.cos(a), Math.sin(a)]);
     }
+    for (let s = -1.7; s <= 1.7; s += 0.4) for (let u = -1.7; u <= 1.7; u += 0.4) if (s * s + u * u < 3) add(8.7, s, u, "motor", [1, 0, 0]);
+    const asa = (f0, f1, larg, u) => {
+      for (let f = f0; f <= f1; f += 0.4) for (let s = -larg; s <= larg; s += 0.4) {
+        const pontaS = Math.abs(s) - (larg - 1.2);
+        if (pontaS > 0 && ((f - f0) < pontaS * 0.8 || (f1 - f) < pontaS * 0.8)) continue;
+        const as = Math.abs(s);
+        const c = as > 9.6 && as < 10.8 ? "faixa" : (as % 3.2 < 0.45 && as > 2 ? "nervura" : "asa");
+        add(f, s, u, c, [0, 0, 1]);
+      }
+    };
+    asa(0.6, 4.6, 14, 3.4);
+    asa(0.2, 4.0, 12.6, -1.4);
+    for (const s of [-8.2, 8.2, -1.9, 1.9]) for (let u = -1.4; u <= 3.4; u += 0.35) { add(2.4, s, u, "haste", [0, Math.sign(s), 0]); add(3.0, s, u, "haste", [0, Math.sign(s), 0]); }
+    for (let f = -12; f <= -9.2; f += 0.4) for (let s = -5.6; s <= 5.6; s += 0.4) { if (Math.abs(s) > 4.4 && (f < -11.4 || f > -9.6)) continue; add(f, s, 0.3, "asa", [0, 0, 1]); }
+    for (let f = -12.4; f <= -8.6; f += 0.35) { const umax = 5 - (f + 12.4) * 1.1; for (let u = 0.6; u <= umax; u += 0.35) { add(f, 0.25, u, f < -11.6 ? "faixa" : "corpo", [0, 1, 0]); add(f, -0.25, u, f < -11.6 ? "faixa" : "corpo", [0, -1, 0]); } }
+    for (let f = -3.4; f <= -0.8; f += 0.35) for (let s = -1.1; s <= 1.1; s += 0.35) add(f, s, 1.95, "cabine", [0, 0, 1]);
+    for (let f = -2.6; f <= -1.8; f += 0.3) for (let s = -0.5; s <= 0.5; s += 0.3) for (let u = 2.2; u <= 2.9; u += 0.3) add(f, s, u, "piloto", [0, s, u - 2.5]);
+    for (let s = -1.1; s <= 1.1; s += 0.3) for (let u = 1.9; u <= 2.6; u += 0.3) add(-0.5, s, u, "vidro", [1, 0, 0.4]);
+    for (const s of [-2.7, 2.7]) {
+      for (let u = -3.6; u <= -1.6; u += 0.35) add(3.2, s * (0.6 + (u + 3.6) * -0.05), u, "haste", [0, Math.sign(s), 0]);
+      for (let f = 2.6; f <= 3.8; f += 0.3) for (let u = -4.1; u <= -3.0; u += 0.3) if ((f - 3.2) ** 2 + (u + 3.55) ** 2 < 0.4) add(f, s, u, "roda", [0, Math.sign(s), 0]);
+    }
+    return v;
+  })();
+  function rot(p, th, fi) {
+    const s1 = p[1] * Math.cos(fi) - p[2] * Math.sin(fi), u1 = p[1] * Math.sin(fi) + p[2] * Math.cos(fi);
+    return [p[0] * Math.cos(th) - s1 * Math.sin(th), p[0] * Math.sin(th) + s1 * Math.cos(th), u1];
+  }
+  const AVN = 76, AVC = 38, AVCY = 42;
+  const cacheAviao = new Map(), cacheSombra = new Map();
+  function spriteAviao(ith, ifi, ihe, sombra) {
+    const chave = sombra ? ith : ith + "," + ifi + "," + ihe;
+    const cache = sombra ? cacheSombra : cacheAviao;
+    if (cache.has(chave)) return cache.get(chave);
+    const th = ith / 64 * Math.PI * 2, fi = ifi * 0.11, al = ihe / 3 * Math.PI;
+    const pts = modeloAviao.slice();
+    if (!sombra) for (let r = -5; r <= 5; r += 0.35) { if (Math.abs(r) < 0.5) continue; pts.push({ f: 9.2, s: Math.cos(al) * r, u: Math.sin(al) * r, c: "helice", n: [1, 0, 0] }); }
+    const cor = new Float32Array(AVN * AVN * 3), prof = new Float32Array(AVN * AVN).fill(-1e9);
+    for (const p of pts) {
+      const [gr, gd, u] = rot([p.f, p.s, sombra ? 0 : p.u], th, sombra ? 0 : fi);
+      const x = Math.round(AVC + gr), y = Math.round(AVCY - gd * 0.5 - (sombra ? 0 : u * 0.866));
+      if (x < 0 || y < 0 || x >= AVN || y >= AVN) continue;
+      const z = -0.866 * gd + 0.5 * u, i = y * AVN + x;
+      if (z <= prof[i]) continue;
+      prof[i] = z;
+      if (sombra) continue;
+      let n = rot(p.n, th, fi);
+      const nm = Math.hypot(...n) || 1; n = n.map(q => q / nm);
+      let fator = 1;
+      if (n[0] * CAM[0] + n[1] * CAM[1] + n[2] * CAM[2] < 0) { n = n.map(q => -q); fator = 0.72; }
+      const d = Math.max(0, n[0] * LUZ[0] + n[1] * LUZ[1] + n[2] * LUZ[2]);
+      const b = Math.round((0.52 + 0.62 * d) * fator * 6) / 6;
+      const base = PALETA[p.c];
+      cor[i * 3] = base[0] * b; cor[i * 3 + 1] = base[1] * b; cor[i * 3 + 2] = base[2] * b;
+    }
+    const c = document.createElement("canvas"); c.width = AVN; c.height = AVN;
+    const x = c.getContext("2d"), img = x.createImageData(AVN, AVN), d = img.data;
+    const cheio = i => prof[i] > -1e8;
+    for (let y = 0; y < AVN; y++) for (let xx = 0; xx < AVN; xx++) {
+      const i = y * AVN + xx, o = i * 4;
+      if (cheio(i)) {
+        if (sombra) { d[o + 3] = 255; continue; }
+        let r = cor[i * 3], g = cor[i * 3 + 1], bb = cor[i * 3 + 2];
+        const viz = [i - 1, i + 1, i - AVN, i + AVN].filter(j => j >= 0 && j < AVN * AVN);
+        if (viz.some(j => cheio(j) && prof[j] - prof[i] > 1.6)) { r *= 0.62; g *= 0.62; bb *= 0.62; }
+        d[o] = Math.min(255, r); d[o + 1] = Math.min(255, g); d[o + 2] = Math.min(255, bb); d[o + 3] = 255;
+      } else if (!sombra) {
+        const viz = [xx > 0 ? i - 1 : -1, xx < AVN - 1 ? i + 1 : -1, i - AVN, i + AVN].filter(j => j >= 0 && j < AVN * AVN);
+        if (viz.some(cheio)) { d[o] = 58; d[o + 1] = 14; d[o + 2] = 16; d[o + 3] = 255; }
+      }
+    }
+    x.putImageData(img, 0, 0);
+    cache.set(chave, c);
+    return c;
+  }
+
+  const FONTE = {
+    "A": [".#.", "#.#", "###", "#.#", "#.#"], "N": ["#..#", "##.#", "#.##", "#..#", "#..#"], "U": ["#.#", "#.#", "#.#", "#.#", "###"], "C": [".##", "#..", "#..", "#..", ".##"],
+    "I": ["###", ".#.", ".#.", ".#.", "###"], "E": ["###", "#..", "##.", "#..", "###"], "Q": [".#.", "#.#", "#.#", "##.", ".##"], "T": ["###", ".#.", ".#.", ".#.", ".#."],
+    "Y": ["#.#", "#.#", ".#.", ".#.", ".#."], "B": ["##.", "#.#", "##.", "#.#", "##."], "H": ["#.#", "#.#", "###", "#.#", "#.#"], "O": [".#.", "#.#", "#.#", "#.#", ".#."],
+    "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"], "R": ["##.", "#.#", "##.", "#.#", "#.#"], ".": [".", ".", ".", ".", "#"], "·": [".", ".", "#", ".", "."], " ": ["..", "..", "..", "..", ".."]
+  };
+  const texturaFaixa = (() => {
+    const texto = "ANUNCIE AQUI · TINYBH.COM.BR", gl = [...texto].map(ch => FONTE[ch] || FONTE[" "]);
+    const w = gl.reduce((s, g) => s + g[0].length + 1, 0) + 7, h = 11;
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d");
+    x.fillStyle = "#fff4dc"; x.fillRect(0, 0, w, h);
+    x.fillStyle = "#e9dcc0"; x.fillRect(0, h - 3, w, 1);
+    x.fillStyle = "#d9452b"; x.fillRect(0, 0, w, 1); x.fillRect(0, h - 1, w, 1);
+    x.fillStyle = "#2a1a0e";
+    let px = 4;
+    for (const g of gl) { g.forEach((linha, j) => [...linha].forEach((ch, i) => { if (ch === "#") x.fillRect(px + i, 3 + j, 1, 1); })); px += g[0].length + 1; }
+    return c;
+  })();
+
+  const aviao = { ativo: null, proximo: 4000, caixa: null };
+  function novoVoo(k) {
+    const z0 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(0, 0));
+    const z1 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(vida.w, vida.h));
+    const cx = (z0.x + z1.x) / 2, cy = (z0.y + z1.y) / 2, raio = Math.hypot(z1.x - z0.x, z1.y - z0.y) * 0.62;
+    const lado = Math.random() < 0.5 ? -1 : 1;
+    const x = cx + lado * raio, y = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.5;
+    const tx = cx - lado * (z1.x - z0.x) * 0.15, ty = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.4;
+    const th = Math.atan2(-(ty - y) / 0.5, tx - x), base = lado < 0 ? 0 : Math.PI;
+    const rastro = [];
+    for (let i = 160; i > 0; i--) rastro.push({ x: x - Math.cos(th) * i * 4 / k, y: y + Math.sin(th) * 0.5 * i * 4 / k });
+    return { x, y, th, base, w: 0, fi: 0, tx, ty, passou: false, menor: 1e9, semente: Math.random() * 10, rastro, fumaca: [], proxFumaca: 0, he: 0, t: 0, inverte: null };
+  }
+  function desenharAviao(g, gm, t, dt, k, tela, anima) {
+    if (!aviao.ativo && t > aviao.proximo && anima && vida.cond.chuva < 0.6) aviao.ativo = novoVoo(k);
     const a = aviao.ativo;
     aviao.caixa = null;
     if (!a) return;
-    const vel = 140 / Math.max(0.35, Math.min(1, k));
-    if (anima) { a.x += vel * dt * a.dir; a.y += vel * dt * a.vy; a.fase += dt; }
-    if ((a.dir > 0 && a.x > a.fim) || (a.dir < 0 && a.x < a.fim)) { aviao.ativo = null; aviao.proximo = t + 22000 + Math.random() * 20000; return; }
-    const [sx, sy0] = tela(a.x, a.y);
-    const s = Math.max(2, Math.min(3.4, 1.6 + 2.2 * k));
-    const sy = sy0 + Math.sin(a.fase * 1.6) * 3;
-    const alt = 120 + 160 * Math.min(1, k);
-    const cores = { o: "#14181f", W: "#f3e2b3", R: "#d9452b", K: "#2b2f36", p: a.fase * 30 % 2 < 1 ? "rgba(220,225,232,0.85)" : "rgba(120,128,140,0.6)" };
-    const sombra = { o: "rgba(0,0,0,0.24)", W: "rgba(0,0,0,0.24)", R: "rgba(0,0,0,0.24)", K: "rgba(0,0,0,0.24)", p: "rgba(0,0,0,0.12)" };
-    const largAviao = AVIAO[0].length * s;
-    const texto = "ANUNCIE AQUI · TINYBH.COM.BR";
-    gm.font = `${Math.round(5 * s)}px Silkscreen, monospace`;
-    const largTexto = gm.measureText(texto).width;
-    const fW = largTexto + 8 * s, fH = 9 * s, corda = 16 * s;
-    const fx = a.dir > 0 ? sx - largAviao / 2 - corda - fW : sx + largAviao / 2 + corda;
-    const fy = sy - fH / 2 + 2 * s;
-    const desenhaFaixa = (ctx, sombraY, cor) => {
-      const fatias = 24, lw = fW / fatias;
-      ctx.strokeStyle = cor ? "rgba(0,0,0,0.2)" : "#2b2f36"; ctx.lineWidth = Math.max(1, s * 0.6);
-      ctx.beginPath(); ctx.moveTo(a.dir > 0 ? sx - largAviao / 2 : sx + largAviao / 2, sy + sombraY + 2 * s); ctx.lineTo(a.dir > 0 ? fx + fW : fx, fy + sombraY + fH / 2); ctx.stroke();
-      for (let i = 0; i < fatias; i++) {
-        const dist = a.dir > 0 ? (fatias - i) / fatias : i / fatias;
-        const oy = Math.round(Math.sin(a.fase * 6 - dist * 5) * 2.2 * s * dist / s) * s;
-        ctx.fillStyle = cor || "#14181f"; ctx.fillRect(fx + i * lw, fy + oy + sombraY - s, lw + 0.5, fH + 2 * s);
-        if (!cor) { ctx.fillStyle = "#fff3d6"; ctx.fillRect(fx + i * lw, fy + oy, lw + 0.5, fH); ctx.fillStyle = "#e8744c"; ctx.fillRect(fx + i * lw, fy + oy, lw + 0.5, s); ctx.fillRect(fx + i * lw, fy + oy + fH - s, lw + 0.5, s); }
+    const s = Math.round(Math.max(3, Math.min(4.5, 2.6 + 2.2 * k)) * 2) / 2;
+    const vImg = 92 / k;
+    if (anima) {
+      a.t += dt;
+      const dx = a.tx - a.x, dy = a.ty - a.y, dist = Math.hypot(dx, dy) * k;
+      if (dist < a.menor) a.menor = dist; else if (dist > a.menor + 40) a.passou = true;
+      let wDes = 0.32 * Math.sin(a.t * 0.27 + a.semente) + 0.12 * Math.sin(a.t * 0.71 + a.semente * 2);
+      if (!a.passou) {
+        let dif = Math.atan2(-dy / 0.5, dx) - a.th;
+        while (dif > Math.PI) dif -= 2 * Math.PI; while (dif < -Math.PI) dif += 2 * Math.PI;
+        wDes = wDes * 0.4 + Math.max(-0.45, Math.min(0.45, dif * 0.9));
       }
-      if (!cor) {
-        ctx.save(); ctx.beginPath(); ctx.rect(fx, fy - 4 * s, fW, fH + 8 * s); ctx.clip();
-        ctx.fillStyle = "#2a1a0e"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
-        const passos = 24, lw2 = fW / passos;
-        for (let i = 0; i < passos; i++) {
-          const dist = a.dir > 0 ? (passos - i) / passos : i / passos;
-          const oy = Math.round(Math.sin(a.fase * 6 - dist * 5) * 2.2 * dist) * s;
-          ctx.save(); ctx.beginPath(); ctx.rect(fx + i * lw2, fy - 4 * s, lw2 + 0.6, fH + 8 * s); ctx.clip();
-          ctx.fillText(texto, fx + 4 * s, fy + fH / 2 + oy + s * 0.4); ctx.restore();
-        }
-        ctx.restore();
+      let desvio = a.th - a.base;
+      while (desvio > Math.PI) desvio -= 2 * Math.PI; while (desvio < -Math.PI) desvio += 2 * Math.PI;
+      if (Math.abs(desvio) > 0.3) wDes -= (desvio - Math.sign(desvio) * 0.3) * 1.6;
+      a.w += (wDes - a.w) * Math.min(1, dt * 1.5);
+      a.th += a.w * dt;
+      a.fi += (Math.max(-0.42, Math.min(0.42, -a.w * 1.25)) - a.fi) * Math.min(1, dt * 3);
+      a.x += Math.cos(a.th) * vImg * dt; a.y -= Math.sin(a.th) * 0.5 * vImg * dt;
+      a.rastro.push({ x: a.x, y: a.y });
+      if (a.rastro.length > 1400) a.rastro.splice(0, a.rastro.length - 1400);
+      a.he = (a.he + 1) % 3;
+      a.proxFumaca -= dt;
+      if (a.proxFumaca <= 0) {
+        a.proxFumaca = 0.07;
+        const cauda = rot([-12, 0, 0], a.th, 0);
+        a.fumaca.push({ x: a.x + cauda[0] * s / k, y: a.y - cauda[1] * 0.5 * s / k, nasc: t, sem: Math.random() });
       }
-    };
-    desenhaFaixa(g, alt, "rgba(0,0,0,0.2)");
-    pixelSprite(g, AVIAO, sx, sy + alt, s, sombra, a.dir < 0);
-    desenhaFaixa(gm, 0, null);
-    pixelSprite(gm, AVIAO, sx, sy, s, cores, a.dir < 0);
-    aviao.caixa = { x0: Math.min(fx, sx - largAviao / 2) - 6, x1: Math.max(fx + fW, sx + largAviao / 2) + 6, y0: sy - 8 * s, y1: sy + 8 * s };
+    }
+    a.fumaca = a.fumaca.filter(p => t - p.nasc < 1600);
+    const [sx0, sy0] = tela(a.x, a.y);
+    const alt = Math.round(s * 30 + Math.sin(a.t * 1.3) * s);
+    const distTela = Math.hypot(sx0 - vida.w / 2, sy0 - vida.h / 2);
+    if (a.passou && distTela > Math.hypot(vida.w, vida.h) * 0.75 || a.t > 60) { aviao.ativo = null; aviao.proximo = t + 22000 + Math.random() * 20000; return; }
+
+    const ith = ((Math.round(a.th / (Math.PI * 2) * 64) % 64) + 64) % 64;
+    const ifi = Math.max(-4, Math.min(4, Math.round(a.fi / 0.11)));
+    const SW = AVN * s;
+    const pos = (x, y, ox, oy) => [Math.round(x - ox * s), Math.round(y - oy * s)];
+    const sombraX = sx0 + alt * 0.28, sombraY = sy0;
+
+    const pontos = [];
+    const caudaL = rot([-12.5, 0, 0], a.th, a.fi);
+    pontos.push([sx0 + caudaL[0] * s, sy0 - alt - (caudaL[1] * 0.5 + caudaL[2] * 0.866) * s]);
+    const raioCauda = Math.hypot(pontos[0][0] - sx0, pontos[0][1] - (sy0 - alt));
+    for (let i = a.rastro.length - 1; i >= 0; i--) { const [x, y] = tela(a.rastro[i].x, a.rastro[i].y); if (pontos.length === 1 && Math.hypot(x - sx0, y - sy0) <= raioCauda) continue; pontos.push([x, y - alt]); }
+    const corda = 26 * s, sf = Math.max(2, Math.round(s * 0.72)), larg = texturaFaixa.width * sf, H = texturaFaixa.height * sf;
+    const amostrar = (() => {
+      let acum = 0, j = 0;
+      const dists = [0];
+      for (let i = 1; i < pontos.length; i++) dists.push(dists[i - 1] + Math.hypot(pontos[i][0] - pontos[i - 1][0], pontos[i][1] - pontos[i - 1][1]));
+      return d => { while (j < dists.length - 2 && dists[j + 1] < d) j++; const seg = dists[j + 1] - dists[j] || 1, f = Math.min(1, Math.max(0, (d - dists[j]) / seg)); return [pontos[j][0] + (pontos[j + 1][0] - pontos[j][0]) * f, pontos[j][1] + (pontos[j + 1][1] - pontos[j][1]) * f]; };
+    })();
+    const W = texturaFaixa.width, cols = [];
+    for (let c = 0; c <= W; c++) cols.push(amostrar(corda + c * sf));
+    const dirX = cols[W][0] - cols[0][0];
+    if (a.inverte === null || Math.abs(dirX) > larg * 0.3) a.inverte = dirX < 0;
+    const onda = c => Math.round(Math.sin(a.t * 7.5 - c * 0.32) * s * 1.4 * (0.25 + c / W)) ;
+
+    g.save();
+    g.globalAlpha = 0.2; g.fillStyle = "#000";
+    for (let c = 0; c < W; c += 2) { const [x, y] = cols[c]; g.fillRect(Math.round(x + alt * 0.28), Math.round(y + alt + H * 0.15), Math.ceil(sf * 2) + 1, Math.ceil(sf * 1.5)); }
+    g.globalAlpha = 0.26; g.imageSmoothingEnabled = false;
+    const somb = spriteAviao(ith, 0, 0, true);
+    const [ax, ay] = pos(sombraX, sombraY, AVC, AVCY);
+    g.drawImage(somb, ax, ay, SW, SW);
+    g.restore();
+
+    gm.save();
+    gm.imageSmoothingEnabled = false;
+    for (const p of a.fumaca) {
+      const idade = (t - p.nasc) / 1600, [x, y] = tela(p.x, p.y);
+      const r = Math.max(1, Math.round((1.4 + idade * 2.6) * (0.8 + p.sem * 0.4)));
+      const cx = Math.round(x), cy = Math.round(y - alt - idade * 6 * s);
+      gm.globalAlpha = 0.85 * (1 - idade);
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+        if (i * i + j * j > r * r + 0.5) continue;
+        gm.fillStyle = j > r * 0.35 ? "#c9ced6" : (i + j < -r * 0.6 ? "#ffffff" : "#eef1f5");
+        gm.fillRect(cx + i * s, cy + j * s, s, s);
+      }
+    }
+    gm.globalAlpha = 1;
+    const topo = c => [cols[c][0], cols[c][1] + onda(c) - H * 0.55];
+    gm.strokeStyle = "rgba(38,34,30,0.75)"; gm.lineWidth = 1;
+    gm.beginPath();
+    gm.moveTo(pontos[0][0], pontos[0][1]); gm.lineTo(topo(0)[0], topo(0)[1]);
+    gm.moveTo(pontos[0][0], pontos[0][1]); gm.lineTo(topo(0)[0], topo(0)[1] + H);
+    gm.stroke();
+    for (let c = 0; c < W; c++) {
+      const [x, y] = topo(c), [x2] = topo(c + 1);
+      const src = a.inverte ? W - 1 - c : c;
+      const cw = Math.max(1, Math.round(Math.abs(x2 - x)));
+      const xx = Math.round(Math.min(x, x2)), yy = Math.round(y);
+      gm.fillStyle = "rgba(40,20,14,0.9)"; gm.fillRect(xx, yy - 1, Math.ceil(cw), Math.round(H) + 2);
+      gm.drawImage(texturaFaixa, src, 0, 1, texturaFaixa.height, xx, yy, Math.ceil(cw), Math.round(H));
+      const incl = Math.cos(a.t * 7.5 - c * 0.32);
+      const nivel = Math.round(incl * 2) / 2;
+      if (nivel > 0) { gm.fillStyle = `rgba(60,20,10,${0.12 * nivel})`; gm.fillRect(xx, yy, Math.ceil(cw), Math.round(H)); }
+      else if (nivel < 0) { gm.fillStyle = `rgba(255,255,255,${-0.1 * nivel})`; gm.fillRect(xx, yy, Math.ceil(cw), Math.round(H)); }
+    }
+    const [px0, py0] = topo(0);
+    gm.fillStyle = "#5a3a20"; gm.fillRect(Math.round(px0) - 1, Math.round(py0) - s, Math.max(2, s * 0.7), Math.round(H) + 2 * s);
+    const spr = spriteAviao(ith, ifi, a.he, false);
+    const [bx, by] = pos(sx0, sy0 - alt, AVC, AVCY);
+    gm.drawImage(spr, bx, by, SW, SW);
+    gm.restore();
+
+    const xs = cols.map(c => c[0]).concat([sx0 - 16 * s, sx0 + 16 * s]), ys = cols.map(c => c[1]).concat([sy0 - alt - 14 * s, sy0 - alt + 10 * s]);
+    aviao.caixa = { x0: Math.min(...xs) - 6, x1: Math.max(...xs) + 6, y0: Math.min(...ys) - H, y1: Math.max(...ys) + H };
   }
 
   let travaVoo = 0;
