@@ -14,7 +14,9 @@ Abra o link do GitHub Pages deste repositório e experimente:
 4. Abrir a ficha de um lugar e usar "Como chegar".
 5. Em "Minha casa", marcar um ponto no mapa e mudar o raio.
 6. Trocar para "Bem-vindo, Turista" e ver o roteiro a pé.
-7. Testar no celular.
+7. Tocar no clima (canto superior direito) e trocar entre clima ao vivo, chuva, tempestade, dia e noite.
+8. Aproximar o mapa e observar carros, ônibus, bicicletas e pessoas.
+9. Testar no celular.
 
 ## Envie seu retorno
 
@@ -24,4 +26,5 @@ Abra uma *issue* neste repositório contando o que funcionou, o que travou e o q
 
 - Planos "Destaque" e "Selo Bem-vindo, Turista" que aparecem em alguns lugares são simulações; nenhuma empresa é cliente.
 - Lugares vêm do OpenStreetMap e podem estar incompletos ou desatualizados.
-- Base 3D: Google. Lugares e limites: © OpenStreetMap contributors.
+- O clima ao vivo vem do Open-Meteo (open-meteo.com), atualizado a cada 15 minutos.
+- Base 3D: Google. Lugares, ruas e limites: © OpenStreetMap contributors.
