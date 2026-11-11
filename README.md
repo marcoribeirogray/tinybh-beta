@@ -48,3 +48,9 @@ O contato que aparece no painel "Anuncie" e nas fichas ("É o seu negócio?") fi
 ```
 
 Deixe vazio (`""`) o canal que não quiser mostrar. Sem nenhum canal preenchido, aparece "Contato comercial: em breve."
+
+## Fontes e licenças
+
+- Prédios e foto aérea: Prefeitura de Belo Horizonte / Prodabel, conjuntos "Edificação" e "Ortofoto 2015" (Creative Commons Atribuição).
+- Ruas, lugares e limites: © colaboradores do OpenStreetMap (ODbL).
+- Pintura em pixel art: FLUX.2 [klein] 4B (Apache 2.0).
