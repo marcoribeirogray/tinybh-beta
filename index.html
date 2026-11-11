@@ -169,6 +169,13 @@
   .anuncio h2 { margin: 0; font-family: var(--fonte-titulo); font-size: 18px; color: var(--ipe); }
   .anuncio p { margin: 0; line-height: 1.5; color: var(--texto); }
   .anuncio small { color: var(--apagado); }
+  .contato-acoes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .contato-acoes a { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; text-decoration: none; color: #fff; background: #2d3748; }
+  .contato-acoes a.zap { background: #1f9d55; }
+  .contato-acoes a.mail { background: #c8281e; }
+  .contato-acoes a.insta { background: #8a3ab9; }
+  .contato-acoes small { width: 100%; }
+  .aviso-plano .contato-acoes { justify-content: flex-start; margin-top: 8px; }
   @media (prefers-reduced-transparency: reduce) { .painel, .vidro, .controles { background: var(--painel-solido); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 
   .creditos { position: fixed; z-index: 8; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; padding-block: 8px calc(8px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: 11px; color: var(--apagado); background: linear-gradient(rgba(18, 22, 29, 0), rgba(18, 22, 29, 0.92)); pointer-events: none; }
@@ -293,7 +300,7 @@
 <section class="anuncio vidro" id="anuncio" hidden role="dialog" aria-labelledby="anuncio-titulo">
   <h2 id="anuncio-titulo" data-i18n="anuncioTitulo">Anuncie no céu de BH</h2>
   <p data-i18n="anuncioTexto">Sua marca na faixa do aviãozinho que sobrevoa o Tiny BH, vista por moradores e turistas em todo o mapa.</p>
-  <small data-i18n="anuncioContato">Contato comercial: em breve.</small>
+  <div class="contato-acoes" id="contato-anuncio"></div>
   <button class="botao primario" id="fechar-anuncio" type="button" data-i18n="fechar">Fechar</button>
 </section>
 
@@ -620,7 +627,7 @@
     let plano = "";
     if (l.destaque) plano = `<div class="aviso-plano">${esc(T("planoDestaque"))}</div>`;
     else if (l.selo) plano = `<div class="aviso-plano">${esc(T("planoSelo"))}</div>`;
-    else if (!l.turistico) plano = `<div class="aviso-plano">${esc(T("assuma"))}</div>`;
+    else if (!l.turistico) plano = `<div class="aviso-plano">${esc(T("assuma"))}${htmlContato(T("msgFicha", l.nome), "Tiny BH: " + l.nome)}</div>`;
     else plano = `<div class="aviso-plano">${esc(T("gratis"))}</div>`;
     c.innerHTML = `<div class="ficha">
       <button class="botao voltar" id="voltar" type="button">${T("voltar")}</button>
@@ -708,7 +715,7 @@
   document.getElementById("alca").onclick = () => document.getElementById("painel").classList.toggle("recolhido");
   document.getElementById("mais").onclick = () => viewer.viewport.zoomBy(1.6).applyConstraints();
   document.getElementById("menos").onclick = () => viewer.viewport.zoomBy(1 / 1.6).applyConstraints();
-  document.getElementById("inicio").onclick = () => viewer.viewport.goHome();
+  document.getElementById("inicio").onclick = () => irInicio();
 
   viewer.addHandler("canvas-click", e => {
     if (e.quick && voadores.caixas.some(cx => e.position.x >= cx.x0 && e.position.x <= cx.x1 && e.position.y >= cx.y0 && e.position.y <= cx.y1)) { e.preventDefaultAction = true; document.getElementById("anuncio").hidden = false; return; }
@@ -746,7 +753,7 @@
     aplicarCfg();
     aplicarIdioma();
     const h = location.hash.slice(1);
-    if (porChave.has(h)) selecionar(h, true); else lerHashVista();
+    if (porChave.has(h)) selecionar(h, true); else if (!lerHashVista()) irInicio(true);
   });
   window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (porChave.has(h) && h !== estado.selecionado) selecionar(h, true); });
 
@@ -1071,8 +1078,8 @@
   const salvarCfg = () => { try { localStorage.setItem("tinybh-cfg", JSON.stringify(cfg)); } catch {} };
 
   const TXT = {
-    pt: { norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver o bairro inteiro (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · 0 bairro inteiro · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca na faixa do aviãozinho que sobrevoa o Tiny BH, vista por moradores e turistas em todo o mapa.", anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, igrejas e teatros de Santa Efigênia, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", proximoBairro: "Próximas etapas do mapa" },
-    en: { norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole neighborhood (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banner of the little plane flying over Tiny BH, seen by locals and tourists all over the map.", anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, churches and theaters of Santa Efigênia, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", proximoBairro: "Next stages of the map" }
+    pt: { norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver o bairro inteiro (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · 0 bairro inteiro · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca nas faixas do avião e do helicóptero que sobrevoam o Tiny BH, vistas por moradores e turistas em todo o mapa.", falarZap: "WhatsApp", falarEmail: "E-mail", falarInsta: "Instagram", msgAnuncio: "Olá! Vi o Tiny BH e quero anunciar minha marca.", msgFicha: n => `Olá! Sou responsável por "${n}" e quero assumir a ficha no Tiny BH.`, anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, igrejas e teatros de Santa Efigênia, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", proximoBairro: "Próximas etapas do mapa" },
+    en: { norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole neighborhood (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banners of the plane and helicopter flying over Tiny BH, seen by locals and tourists all over the map.", falarZap: "WhatsApp", falarEmail: "Email", falarInsta: "Instagram", msgAnuncio: "Hi! I saw Tiny BH and want to advertise my brand.", msgFicha: n => `Hi! I manage "${n}" and want to claim this listing on Tiny BH.`, anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, churches and theaters of Santa Efigênia, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", proximoBairro: "Next stages of the map" }
   };
   const CATEGORIA_EN = { "Restaurantes": "Restaurants", "Lanchonetes": "Snack bars", "Cafés": "Cafés", "Bares": "Bars", "Padarias": "Bakeries", "Açougues": "Butchers", "Supermercados": "Supermarkets", "Bebidas": "Drinks", "Moda": "Fashion", "Shoppings": "Malls", "Papelarias": "Stationery", "Informática": "Computers", "Pet shops": "Pet shops", "Beleza": "Beauty", "Automotivo": "Car services", "Postos": "Gas stations", "Bancos": "Banks", "Farmácias": "Pharmacies", "Hospitais": "Hospitals", "Clínicas": "Clinics", "Dentistas": "Dentists", "Teatros": "Theaters", "Igrejas": "Churches", "Parques": "Squares and parks", "Educação": "Education", "Hospedagem": "Lodging", "Outros": "Other" };
   const GRUPO_EN = { comer: "Food and drink", compras: "Shopping", saude: "Health", servicos: "Services", cultura: "Culture and leisure" };
@@ -1094,6 +1101,7 @@
     document.getElementById("dica").textContent = T("dica");
     const cr = document.querySelectorAll(".creditos span"); if (cr[2]) cr[2].textContent = T("creditos");
     renderCartoes();
+    if (typeof renderContato === "function") try { renderContato(); } catch {}
     atualizar();
   }
 
@@ -1525,8 +1533,11 @@
     const z1 = viewer.viewport.viewerElementToImageCoordinates(new OpenSeadragon.Point(vida.w, vida.h));
     const cx = (z0.x + z1.x) / 2, cy = (z0.y + z1.y) / 2;
     const lado = Math.random() < 0.5 ? -1 : 1;
-    const x = cx + lado * ((z1.x - z0.x) / 2 + 420), y = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.5;
-    const tx = cx - lado * (z1.x - z0.x) * 0.15, ty = cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.4;
+    const tam = viewer.world.getItemAt(0)?.getContentSize() || { x: 7168, y: 6400 };
+    const lim = (v, a, b) => Math.max(a, Math.min(b, v));
+    const ty = lim(cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.4, tam.y * 0.18, tam.y * 0.8);
+    const tx = lim(cx - lado * (z1.x - z0.x) * 0.15, tam.x * 0.2, tam.x * 0.8);
+    const x = cx + lado * ((z1.x - z0.x) / 2 + 420), y = lim(cy + (Math.random() - 0.5) * (z1.y - z0.y) * 0.5, tam.y * 0.15, tam.y * 0.85);
     const th = Math.atan2(-(ty - y) / 0.5, tx - x), base = lado < 0 ? 0 : Math.PI;
     const rastro = [];
     for (let i = 600; i > 0; i--) rastro.push({ x: x - Math.cos(th) * i * 3, y: y + Math.sin(th) * 0.5 * i * 3 });
@@ -1766,7 +1777,7 @@
   document.getElementById("dobrar-cartoes").onclick = () => { cfg.cartoes = !cfg.cartoes; aplicarCfg(); };
   document.getElementById("seta-dir").onclick = () => { const tr = document.getElementById("trilho"); tr.scrollLeft += tr.clientWidth * 0.8; };
   document.getElementById("fechar-anuncio").onclick = () => { document.getElementById("anuncio").hidden = true; };
-  document.getElementById("bussola").onclick = () => viewer.viewport.goHome();
+  document.getElementById("bussola").onclick = () => irInicio();
   document.getElementById("compartilhar").onclick = async e => {
     const btn = e.currentTarget;
     if (!estado.selecionado) { const c = viewer.viewport.viewportToImageCoordinates(viewer.viewport.getCenter(true)); const z = Math.round(viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true)) * 1000); history.replaceState(null, "", `#v-${Math.round(c.x)}-${Math.round(c.y)}-${z}`); }
@@ -1789,9 +1800,44 @@
     else if (k === "b") { cfg.linhas = cfg.linhas === "bairros" ? "nenhuma" : "bairros"; aplicarCfg(); }
     else if (k === "d") { cfg.tilt = !cfg.tilt; aplicarCfg(); }
     else if (k === "t") { estado.modo = estado.modo === "turista" ? "morador" : "turista"; estado.selecionado = null; atualizar(); }
-    else if (k === "0") viewer.viewport.goHome();
+    else if (k === "0") irInicio();
     else if (k === "+" || k === "=") viewer.viewport.zoomBy(1.6).applyConstraints();
     else if (k === "-" || k === "_") viewer.viewport.zoomBy(1 / 1.6).applyConstraints();
     else if (k === "escape") { document.getElementById("cfg").hidden = true; document.getElementById("anuncio").hidden = true; document.getElementById("clima-menu").hidden = true; if (estado.selecionado) { estado.selecionado = null; atualizar(); } }
   });
+
+  let contato = {};
+  function htmlContato(msg, assunto) {
+    const c = contato, partes = [];
+    const zap = String(c.whatsapp || "").replace(/\D/g, "");
+    if (zap) partes.push(`<a class="zap" href="https://wa.me/${zap}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${T("falarZap")}</a>`);
+    if (c.email) partes.push(`<a class="mail" href="mailto:${encodeURIComponent(c.email).replace("%40", "@")}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(msg)}">${T("falarEmail")}</a>`);
+    const insta = String(c.instagram || "").replace(/^@/, "").trim();
+    if (insta) partes.push(`<a class="insta" href="https://instagram.com/${encodeURIComponent(insta)}" target="_blank" rel="noopener">${T("falarInsta")}</a>`);
+    return partes.length ? `<div class="contato-acoes">${partes.join("")}</div>` : "";
+  }
+  function renderContato() {
+    const el = document.getElementById("contato-anuncio");
+    const h = htmlContato(T("msgAnuncio"), "Anunciar no Tiny BH");
+    el.innerHTML = h ? h.replace(/^<div class="contato-acoes">|<\/div>$/g, "") : `<small>${esc(T("anuncioContato"))}</small>`;
+  }
+  fetch("dados/contato.json", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => { contato = j || {}; renderContato(); if (estado.selecionado) atualizar(); }).catch(() => renderContato());
+  renderContato();
+
+  function irInicio(imediato) {
+    if (ehCelular()) { viewer.viewport.goHome(imediato); return; }
+    const box = viewer.container.getBoundingClientRect(), W = box.width, H = box.height;
+    const painel = document.getElementById("painel"), cartoes = document.getElementById("cartoes"), ctl = document.querySelector(".controles");
+    const rp = painel && !painel.classList.contains("recolhido") ? painel.getBoundingClientRect() : null;
+    const rc = cartoes && !cartoes.classList.contains("recolhidos") ? cartoes.getBoundingClientRect() : null;
+    const rk = ctl ? ctl.getBoundingClientRect() : null;
+    const esq = (rp ? rp.right - box.left : 0) + 16, dir = (rk ? rk.left - box.left : W) - 16, topo = 16, base = (rc ? rc.top - box.top : H) - 12;
+    const fw = Math.max(200, dir - esq), fh = Math.max(200, base - topo);
+    const tam = viewer.world.getItemAt(0).getContentSize(), asp = tam.y / tam.x;
+    const z = Math.min(fw / W, fh / (W * asp)) * 0.98;
+    const fx = (esq + dir) / 2, fy = (topo + base) / 2;
+    const c = new OpenSeadragon.Point(0.5 - (fx - W / 2) / (z * W), asp / 2 - (fy - H / 2) / (z * W));
+    viewer.viewport.zoomTo(z, null, !!imediato);
+    viewer.viewport.panTo(c, !!imediato);
+  }
 </script>

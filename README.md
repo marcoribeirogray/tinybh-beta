@@ -34,3 +34,17 @@ Abra uma *issue* neste repositório contando o que funcionou, o que travou e o q
 - Lugares vêm do OpenStreetMap e podem estar incompletos ou desatualizados.
 - O clima ao vivo vem do Open-Meteo (open-meteo.com), atualizado a cada 15 minutos.
 - Base 3D: Google. Lugares, ruas e limites: © OpenStreetMap contributors.
+
+## Contato comercial
+
+O contato que aparece no painel "Anuncie" e nas fichas ("É o seu negócio?") fica em `dados/contato.json`:
+
+```json
+{
+  "whatsapp": "+55 31 99999-0000",
+  "email": "comercial@tinybh.com.br",
+  "instagram": "@tinybh"
+}
+```
+
+Deixe vazio (`""`) o canal que não quiser mostrar. Sem nenhum canal preenchido, aparece "Contato comercial: em breve."
