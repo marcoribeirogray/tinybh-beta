@@ -33,7 +33,7 @@ Abra uma *issue* neste repositório contando o que funcionou, o que travou e o q
 - Planos "Destaque" e "Selo Bem-vindo, Turista" que aparecem em alguns lugares são simulações; nenhuma empresa é cliente.
 - Lugares vêm do OpenStreetMap e podem estar incompletos ou desatualizados.
 - O clima ao vivo vem do Open-Meteo (open-meteo.com), atualizado a cada 15 minutos.
-- Base 3D: Google. Lugares, ruas e limites: © OpenStreetMap contributors.
+- Base: Prefeitura de BH/Prodabel (edificações e ortofoto 2015, CC-BY). Lugares, ruas e limites: © OpenStreetMap contributors.
 
 ## Contato comercial
 
