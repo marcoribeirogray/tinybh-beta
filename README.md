@@ -9,7 +9,7 @@ Esta prévia cobre o **Centro-Sul de BH**: Centro, Santa Efigênia, Funcionário
 Abra o link do GitHub Pages deste repositório e experimente:
 
 1. Arrastar e dar zoom no mapa.
-2. Buscar um lugar (ex.: "hospital", "padaria", "farmácia").
+2. Buscar um lugar (ex.: "hospital", "padaria"), uma rua ou um endereço com número (ex.: "rua do ouro 1709", "av afonso pena 1500").
 3. Filtrar por categoria.
 4. Abrir a ficha de um lugar e usar "Como chegar".
 5. Em "Minha casa", marcar um ponto no mapa e mudar o raio.
