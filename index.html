@@ -18605,7 +18605,19 @@
   "Savassi",
   "Lourdes",
   "Serra"
- ]
+ ],
+ "proj": {
+  "imin": -4,
+  "jmin": -7,
+  "passo": 768,
+  "quadro": 1024,
+  "escala": 3.4,
+  "rumo": 60,
+  "inclinacao": 30,
+  "lat0": -19.9192,
+  "lon0": -43.9386,
+  "fator": 8
+ }
 };
   const GRUPOS = {
     comer: { nome: "Comer e beber", cor: "var(--telha)" },
@@ -18641,7 +18653,48 @@
   });
 
   const normalizar = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const pxParaLatLon = (px, py) => ({ lat: DADOS.inv.lat[0] * px + DADOS.inv.lat[1] * py + DADOS.inv.lat[2], lon: DADOS.inv.lon[0] * px + DADOS.inv.lon[1] * py + DADOS.inv.lon[2] });
+  const superficie = { z: null, w: 0, h: 0 };
+  const PROJ = (() => {
+    const p = DADOS.proj;
+    if (!p) return null;
+    const r = Math.PI / 180, h = p.rumo * r, e = p.inclinacao * r;
+    const rx = Math.cos(h), ry = -Math.sin(h);
+    const dx = Math.sin(h) * Math.cos(e), dy = Math.cos(h) * Math.cos(e), dz = -Math.sin(e);
+    const ux = ry * dz, uy = -rx * dz, uz = rx * dy - ry * dx;
+    const a = 6378137, e2 = 6.69437999014e-3, s = Math.sin(p.lat0 * r);
+    const M = a * (1 - e2) / Math.pow(1 - e2 * s * s, 1.5), N = a / Math.sqrt(1 - e2 * s * s);
+    return { ...p, rx, ry, ux, uy, uz, det: rx * uy - ry * ux, M, Nc: N * Math.cos(p.lat0 * r), pm: p.passo / p.escala };
+  })();
+  function zSuperficie(px, py) {
+    const S = superficie;
+    if (!S.z) return null;
+    const x = Math.min(S.w - 1, Math.max(0, Math.floor(px / PROJ.fator))), y = Math.min(S.h - 1, Math.max(0, Math.floor(py / PROJ.fator)));
+    return S.z[y * S.w + x];
+  }
+  const pxParaLatLonAfim = (px, py) => ({ lat: DADOS.inv.lat[0] * px + DADOS.inv.lat[1] * py + DADOS.inv.lat[2], lon: DADOS.inv.lon[0] * px + DADOS.inv.lon[1] * py + DADOS.inv.lon[2] });
+  function pxParaLatLon(px, py) {
+    const z = PROJ ? zSuperficie(px, py) : null;
+    if (z === null) return pxParaLatLonAfim(px, py);
+    const P = PROJ;
+    const sx = (px - P.quadro / 2) / P.escala + P.imin * P.pm;
+    const sy = -((py - P.quadro / 2) / P.escala + P.jmin * P.pm);
+    const b = sy - z * P.uz;
+    const x = (sx * P.uy - P.ry * b) / P.det, y = (P.rx * b - P.ux * sx) / P.det;
+    return { lat: P.lat0 + y / P.M * 180 / Math.PI, lon: P.lon0 + x / P.Nc * 180 / Math.PI };
+  }
+  function carregarSuperficie() {
+    if (!PROJ) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data, z = new Float32Array(c.width * c.height);
+      for (let i = 0; i < z.length; i++) z[i] = (d[i * 4] * 256 + d[i * 4 + 1]) / 65535 * 400 - 100;
+      Object.assign(superficie, { z, w: c.width, h: c.height });
+      if (estado.casa) { Object.assign(estado.casa, pxParaLatLon(estado.casa.px, estado.casa.py)); salvarCasa(); atualizar(); }
+    };
+    img.src = "dados/regiao-superficie.png";
+  }
   const distanciaM = (a, b) => {
     const R = 6371000, r = Math.PI / 180;
     const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
@@ -18963,7 +19016,7 @@
     document.getElementById("marcar").textContent = estado.casa ? T("mudar") : T("marcar");
     document.getElementById("casa-texto").textContent = estado.casa ? T("casaCheia", fmtDist(estado.raio)) : T("casaVazia");
     if (!temCasa) return;
-    const metrosPorPx = distanciaM(pxParaLatLon(0, 0), pxParaLatLon(1000, 0)) / 1000;
+    const metrosPorPx = PROJ ? 1 / PROJ.escala : distanciaM(pxParaLatLonAfim(0, 0), pxParaLatLonAfim(1000, 0)) / 1000;
     const rx = estado.raio / metrosPorPx;
     const ry = rx / 2;
     raioEl = document.createElement("div"); raioEl.className = "raio";
@@ -19348,6 +19401,7 @@
     prepararPombos();
     carregarContorno();
     carregarAlturas();
+    setTimeout(carregarSuperficie, 2500);
     popular();
     aplicarCondicoes();
     buscarClima();
