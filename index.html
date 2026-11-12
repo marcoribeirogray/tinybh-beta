@@ -266,6 +266,13 @@
   .item-caminho i { width: 8px; height: 8px; border-radius: 2px; }
   .item-caminho span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .item-caminho em { font-style: normal; color: var(--apagado); font-size: 11px; white-space: nowrap; }
+  .card-parada { position: relative; transform: translate(-50%, calc(-100% - 46px)); display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; width: 220px; padding: 6px; background: #fff3d6; color: #2a1a0e; box-shadow: 0 0 0 2px #2a1a0e, 0 0 0 4px var(--ipe), 0 0 0 6px #2a1a0e, 0 10px 24px rgba(0,0,0,0.45); cursor: pointer; animation: surgir 0.25s steps(3, end); }
+  .card-parada::after { content: ""; position: absolute; left: 50%; bottom: -12px; width: 6px; height: 10px; background: #2a1a0e; transform: translateX(-50%); }
+  .card-parada img { width: 64px; height: 48px; object-fit: cover; image-rendering: pixelated; display: block; }
+  .card-parada img.ic { width: 32px; height: 40px; object-fit: contain; justify-self: center; }
+  .card-parada small { display: block; font-family: var(--fonte-titulo); font-size: 9px; color: #c4521f; text-transform: uppercase; }
+  .card-parada b { display: block; font-size: 12px; line-height: 1.2; }
+  @keyframes surgir { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
   .pela { margin: 0; font-size: 12px; color: var(--apagado); line-height: 1.45; }
   .pela b { color: var(--texto); font-weight: 600; }
   .dial { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; }
@@ -29019,7 +29026,7 @@ void main() {
 
   function calcularRotas() {
     const P = estado.passeio, G = GRAFO;
-    P.rotas = []; P.erro = ""; P.perto = [];
+    P.rotas = []; P.erro = ""; P.perto = []; P.paradas = []; P.anda = null; fecharCardParada();
     if (!G || !P.origem || !P.destino) return;
     const a = noMaisPerto(G, P.origem.px, P.origem.py), b = noMaisPerto(G, P.destino.px, P.destino.py);
     if (a.distM > 200 || b.distM > 200) { P.erro = T("passeioFora"); return; }
@@ -29073,6 +29080,15 @@ void main() {
     }
     achados.sort((a, b) => a.ordem - b.ordem);
     P.perto = achados.map(a => a.l);
+    const visita = l => l.turistico || l.selo || l.destaque;
+    const vistos = new Set();
+    let ultimaOrdem = -1e9;
+    P.paradas = achados.filter(a => {
+      if (!visita(a.l) || vistos.has(a.l.nome) || a.ordem - ultimaOrdem < 140) return false;
+      vistos.add(a.l.nome); ultimaOrdem = a.ordem; return true;
+    }).sort((a, b) => (b.l.turistico || b.l.selo ? 1 : 0) - (a.l.turistico || a.l.selo ? 1 : 0)).slice(0, 7).sort((a, b) => a.ordem - b.ordem);
+    P.anda = null;
+    fecharCardParada();
   }
 
   function destaquesRota() {
@@ -29108,7 +29124,7 @@ void main() {
 
   function fecharPasseio() {
     const P = estado.passeio;
-    P.aberto = false; P.rotas = []; P.perto = [];
+    P.aberto = false; P.rotas = []; P.perto = []; P.paradas = []; P.anda = null; fecharCardParada();
     if (estado.marcando === "origem" || estado.marcando === "destino") pararMarcacao();
     if (/^#p-/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
     atualizar();
@@ -29490,13 +29506,20 @@ void main() {
       gm.strokeStyle = "rgba(255,248,230,0.95)"; gm.lineWidth = 2; gm.setLineDash([6, 12]); gm.lineDashOffset = vida.ligada ? -t * 0.02 : 0; gm.stroke(); gm.setLineDash([]);
       const total = r.comp[r.comp.length - 1];
       if (total > 0) {
-        const periodo = Math.max(7000, Math.min(22000, r.tempo * 25));
-        const alvo = vida.ligada ? ((t % periodo) / periodo) * total : total * 0.5;
+        const periodo = Math.max(18000, Math.min(60000, r.tempo * 55));
+        const alvo = andarBoneco(P, r, t, total, periodo, tela);
         let i = 1; while (i < r.comp.length - 1 && r.comp[i] < alvo) i++;
         const f = (alvo - r.comp[i - 1]) / Math.max(1e-6, r.comp[i] - r.comp[i - 1]);
         const x = r.pts[i - 1][0] + (r.pts[i][0] - r.pts[i - 1][0]) * f, y = r.pts[i - 1][1] + (r.pts[i][1] - r.pts[i - 1][1]) * f;
         const [bx, by] = tela(x, y), esq = r.pts[i][0] < r.pts[i - 1][0];
-        pixelSprite(gm, BONECO[vida.ligada ? Math.floor(t / 220) % 2 : 0], bx + s, by - 2 * s, s, { o: "#f2c9a0", c: "#e8744c", p: "#1d2430" }, esq);
+        const sb = Math.max(3, s + 1), parado = P.anda && t < P.anda.pausaAte;
+        const quadroB = vida.ligada && !parado ? Math.floor(t / 300) % 2 : 0;
+        const cx = Math.round(bx), cy = Math.round(by - 4 * sb);
+        gm.fillStyle = "rgba(15,19,24,0.45)"; gm.beginPath(); gm.ellipse(cx, Math.round(by), 4 * sb, 1.6 * sb, 0, 0, Math.PI * 2); gm.fill();
+        gm.fillStyle = "#fff3d6"; gm.beginPath(); gm.arc(cx, cy, 6.2 * sb, 0, Math.PI * 2); gm.fill();
+        gm.lineWidth = Math.max(2, sb * 0.8); gm.strokeStyle = "#0f1318"; gm.stroke();
+        for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) pixelSprite(gm, BONECO[quadroB], cx + ddx * sb * 0.6, cy + ddy * sb * 0.6, sb, { o: "#0f1318", c: "#0f1318", p: "#0f1318" }, esq);
+        pixelSprite(gm, BONECO[quadroB], cx, cy, sb, { o: "#f2c9a0", c: "#2f7fd8", p: "#1d2430" }, esq);
         const meio = total / 2; let j = 1; while (j < r.comp.length - 1 && r.comp[j] < meio) j++;
         const [mx, my] = tela(r.pts[j][0], r.pts[j][1]);
         const txt = fmtMin(r.tempo);
@@ -29512,6 +29535,31 @@ void main() {
     marca(P.origem, "#5fbf6a");
     marca(P.destino, "#e8744c");
     gm.restore();
+  }
+
+  let cardParadaEl = null;
+  function fecharCardParada() { if (cardParadaEl) { viewer.removeOverlay(cardParadaEl); cardParadaEl = null; } }
+  function abrirCardParada(l) {
+    fecharCardParada();
+    const ap = aparencia(l), temFoto = l.turistico || l.selo;
+    const el = document.createElement("div"); el.className = "card-parada";
+    el.innerHTML = `${temFoto ? `<img alt="" src="dados/cartoes/${l.id.replace("/", "-")}.webp">` : `<img class="ic" alt="" src="${sprite(ap.icone, ap.cor, ap.dourado)}">`}<div><small>${esc(l.selo || l.destaque ? T("paradaSugerida") : cat(l.categoria))}</small><b>${esc(l.nome)}</b></div>`;
+    el.onclick = ev => { ev.stopPropagation(); voarPara(l.px, l.py, Math.max(viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom()), 0.6)); };
+    cardParadaEl = el;
+    viewer.addOverlay({ element: el, location: vp(l.px, l.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
+  }
+  function andarBoneco(P, r, t, total, periodo) {
+    if (!vida.ligada) return total * 0.5;
+    if (!P.anda || P.anda.rota !== r) P.anda = { rota: r, pos: 0, ult: t, pausaAte: t + 800, prox: 0 };
+    const A = P.anda, dt = Math.min(200, t - A.ult); A.ult = t;
+    if (t < A.pausaAte) return A.pos;
+    if (cardParadaEl) fecharCardParada();
+    if (A.pos >= total) { A.pos = 0; A.prox = 0; A.pausaAte = t + 1500; return 0; }
+    A.pos = Math.min(total, A.pos + dt * total / periodo);
+    const par = (P.paradas || [])[A.prox];
+    if (par && A.pos >= par.ordem) { A.pos = par.ordem; A.prox++; A.pausaAte = t + 4000; abrirCardParada(par.l); }
+    else if (A.pos >= total) A.pausaAte = t + 2500;
+    return A.pos;
   }
 
   function desenharIconePasseio() {
