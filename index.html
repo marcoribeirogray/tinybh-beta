@@ -77,6 +77,7 @@
   .intro-turista p { margin: 0; color: var(--texto); font-size: 13px; }
 
   .conteudo { flex: 1; overflow-y: auto; min-height: 0; }
+  .dica-filtro { margin: 0 16px 8px; padding: 8px 10px; border-radius: 10px; background: rgba(242,194,48,0.1); color: var(--texto); font-size: 12px; line-height: 1.4; }
   .contagem { padding: 10px 16px 6px; font-size: 11px; color: var(--apagado); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
   .lista { list-style: none; margin: 0; padding: 0 8px 12px; }
   .lista li button { width: 100%; text-align: left; border: 0; background: transparent; padding: 9px 8px; border-radius: 6px; cursor: pointer; display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; }
@@ -7798,7 +7799,8 @@
     cultura: { nome: "Cultura e lazer", cor: "var(--verde)" }
   };
 
-  const estado = { modo: "morador", grupo: null, busca: "", selecionado: null, casa: null, raio: 500, marcando: false };
+  const estado = { modo: "morador", grupo: null, todos: false, busca: "", selecionado: null, casa: null, raio: 500, marcando: false };
+  const filtroAtivo = () => estado.modo === "turista" || estado.todos || !!estado.grupo || !!estado.busca.trim() || !!estado.casa;
   const lugares = DADOS.lugares.map(l => ({ ...l, chave: "lugar-" + l.id.replace("/", "-") }));
   const porChave = new Map(lugares.map(l => [l.chave, l]));
   const W = DADOS.mosaico.largura;
@@ -7852,7 +7854,7 @@
     if (estado.modo === "turista") {
       lista = lista.filter(l => l.turistico || l.selo);
     } else {
-      if (estado.grupo) lista = lista.filter(l => l.grupo === estado.grupo);
+      if (estado.grupo && !estado.busca.trim()) lista = lista.filter(l => l.grupo === estado.grupo);
       if (estado.busca) {
         const q = normalizar(estado.busca);
         lista = lista.filter(l => normalizar(l.nome + " " + l.categoria + " " + (l.endereco || "")).includes(q));
@@ -7946,16 +7948,24 @@
         placa.innerHTML = `<b>★</b> ${esc(l.nome)}`;
         el.appendChild(placa);
       }
-      viewer.addOverlay({ element: el, location: vp(l.px, l.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
       new OpenSeadragon.MouseTracker({ element: el, clickHandler: () => selecionar(l.chave, true) });
       elementosPin.set(l.chave, el);
     }
   }
 
-  function atualizarPins(lista) {
+  const pinsNoMapa = new Set();
+  function atualizarPins(listaFiltro) {
+    const lista = filtroAtivo() ? listaFiltro : listaFiltro.filter(l => l.chave === estado.selecionado);
+    if (estado.selecionado && !lista.some(l => l.chave === estado.selecionado)) { const s = porChave.get(estado.selecionado); if (s) lista.push(s); }
     const ok = new Set(lista.map(l => l.chave));
-    const numRoteiro = new Map(roteiro.map((l, i) => [l.chave, i + 1]));
     for (const l of lugares) {
+      const el = elementosPin.get(l.chave);
+      if (!el) continue;
+      if (ok.has(l.chave) && !pinsNoMapa.has(l.chave)) { viewer.addOverlay({ element: el, location: vp(l.px, l.py), placement: OpenSeadragon.Placement.CENTER, checkResize: false }); pinsNoMapa.add(l.chave); }
+      else if (!ok.has(l.chave) && pinsNoMapa.has(l.chave)) { viewer.removeOverlay(el); pinsNoMapa.delete(l.chave); }
+    }
+    const numRoteiro = new Map(roteiro.map((l, i) => [l.chave, i + 1]));
+    for (const l of lista) {
       const el = elementosPin.get(l.chave);
       if (!el) continue;
       const a = aparencia(l);
@@ -7977,7 +7987,7 @@
   function agrupar() {
     for (const o of overlaysGrupo) viewer.removeOverlay(o);
     overlaysGrupo = [];
-    for (const el of elementosPin.values()) el.classList.remove("agrupado");
+    for (const ch of pinsNoMapa) elementosPin.get(ch).classList.remove("agrupado");
     const lista = estado.listaVisivel || [];
     const zoomImg = viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
     document.getElementById("mapa").classList.toggle("longe", zoomImg < 0.16);
@@ -8014,8 +8024,8 @@
     box.innerHTML = "";
     const todos = document.createElement("button");
     todos.className = "chip"; todos.type = "button"; todos.textContent = T("tudo");
-    todos.setAttribute("aria-pressed", String(!estado.grupo));
-    todos.onclick = () => { estado.grupo = null; atualizar(); };
+    todos.setAttribute("aria-pressed", String(estado.todos && !estado.grupo));
+    todos.onclick = () => { estado.todos = !estado.todos; estado.grupo = null; atualizar(); };
     box.appendChild(todos);
     for (const [k, g] of Object.entries(GRUPOS)) {
       const b = document.createElement("button");
@@ -8055,6 +8065,7 @@
     n.className = "contagem";
     n.textContent = estado.modo === "turista" ? T("paraVisitar", lista.length) : T("lugares", lista.length) + (estado.casa ? T("pertoCasa") : "");
     c.appendChild(n);
+    if (!filtroAtivo()) { const d = document.createElement("div"); d.className = "dica-filtro"; d.textContent = T("dicaFiltro"); c.appendChild(d); }
     if (!lista.length) {
       const v = document.createElement("div");
       v.className = "vazio";
@@ -8301,7 +8312,7 @@
   function atualizarTinta() {
     if (!vida.tinta) return;
     const L = vida.luz, ch = vida.cond.chuva, nv = vida.cond.nuvens;
-    const noite = [52, 66, 112], tarde = [255, 196, 150], dia = [255, 255, 255];
+    const noite = [104, 116, 168], tarde = [255, 200, 158], dia = [255, 255, 255];
     let cor;
     if (L >= 1) cor = dia; else if (L >= 0.5) { const f = (L - 0.5) / 0.5; cor = tarde.map((v, i) => v + (dia[i] - v) * f); } else { const f = L / 0.5; cor = noite.map((v, i) => v + (tarde[i] - v) * f); }
     const cinza = [208, 214, 228], fc = Math.max(0, (nv - 0.3) / 0.7) * 0.85 + ch * 0.15;
@@ -8311,7 +8322,6 @@
     const sat = (1.18 - 0.5 * Math.max(0, nv - 0.2) - 0.15 * ch).toFixed(2);
     const bri = (1.05 - 0.14 * Math.max(0, nv - 0.2) - 0.06 * ch).toFixed(2);
     if (viewer.drawer?.canvas) viewer.drawer.canvas.style.filter = `saturate(${sat}) brightness(${bri})`;
-    if (vida.canvas) vida.canvas.style.filter = `saturate(${sat}) brightness(${bri})`;
     vida.tinta.style.backgroundColor = `rgb(${cor[0]},${cor[1]},${cor[2]})`;
     document.getElementById("mapa").classList.toggle("noite", L < 0.35);
   }
@@ -8391,9 +8401,9 @@
     vida.tinta = document.createElement("div"); vida.tinta.className = "camada-vida"; vida.tinta.id = "tinta";
     vida.luzes = document.createElement("canvas"); vida.luzes.className = "camada-vida"; vida.luzes.id = "luzes";
     vida.clarao = document.createElement("div"); vida.clarao.className = "camada-vida"; vida.clarao.id = "clarao";
-    vida.tilts = [0, 1, 2].map(i => { const d = document.createElement("div"); d.className = "camada-vida tilt-camada"; d.dataset.n = i; return d; });
+    vida.tilts = [0, 1].map(i => { const d = document.createElement("div"); d.className = "camada-vida tilt-camada"; d.dataset.n = i; return d; });
     vida.marcas = document.createElement("canvas"); vida.marcas.className = "camada-vida";
-    for (const el of [vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts]) pai.insertBefore(el, depois);
+    for (const el of [vida.tinta, vida.luzes, vida.clarao, ...vida.tilts, vida.canvas]) pai.insertBefore(el, depois);
     pai.appendChild(vida.marcas);
     vida.ctx = vida.canvas.getContext("2d");
     vida.ctxL = vida.luzes.getContext("2d");
@@ -8409,11 +8419,15 @@
     for (const d of [vida.tinta, vida.clarao, ...vida.tilts]) { d.style.width = r.width + "px"; d.style.height = r.height + "px"; }
     vida.dpr = dpr; vida.w = r.width; vida.h = r.height;
     configurarTilt();
+    vida.chaveLuz = "";
   }
 
   function quadro(t) {
     requestAnimationFrame(quadro);
     if (document.hidden || !vida.ctx) return;
+    const emMovimento = viewer.isAnimating?.() || false;
+    if (!emMovimento && t - (vida.ultimoDesenho || 0) < (tiltEst.blur > 0.2 ? 55 : 33)) return;
+    vida.ultimoDesenho = t;
     const dt = Math.min(0.1, (t - (vida.ultimo || t)) / 1000);
     vida.ultimo = t;
     const g = vida.ctx, gl = vida.ctxL, dpr = vida.dpr;
@@ -8422,7 +8436,6 @@
     const k = e / 1000;
     const tela = (x, y) => [o.x + x * k, o.y + y * k];
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, vida.w, vida.h);
-    gl.setTransform(dpr, 0, 0, dpr, 0, 0); gl.clearRect(0, 0, vida.w, vida.h);
     const anima = vida.ligada;
     const vento = (vida.cond.vento || 8) * 0.9;
     const ventoAng = ((vida.cond.ventoDir ?? 90) + 180 - 60) * Math.PI / 180;
@@ -8443,25 +8456,11 @@
     const mostrar = k > 0.12;
     atualizarVistas(t);
     const noite = vida.luz < 0.5;
-    if (noite) {
-      const a = (0.5 - vida.luz) * 2;
-      const rl = Math.max(3, 26 * k);
-      for (const [px, py] of vida.postes) {
-        const [sx, sy] = tela(px, py);
-        if (sx < -rl || sy < -rl || sx > vida.w + rl || sy > vida.h + rl) continue;
-        const gr = gl.createRadialGradient(sx, sy, 0, sx, sy, rl);
-        gr.addColorStop(0, `rgba(255,190,110,${0.55 * a})`); gr.addColorStop(1, "rgba(255,190,110,0)");
-        gl.fillStyle = gr; gl.fillRect(sx - rl, sy - rl, rl * 2, rl * 2);
-      }
-      for (const l of lugares) {
-        const [sx, sy] = tela(l.px, l.py - 18);
-        const rr = Math.max(4, 40 * k);
-        if (sx < -rr || sy < -rr || sx > vida.w + rr || sy > vida.h + rr) continue;
-        const gr = gl.createRadialGradient(sx, sy, 0, sx, sy, rr);
-        const c = l.destaque ? "255,210,90" : "255,230,170";
-        gr.addColorStop(0, `rgba(${c},${(l.destaque ? 0.8 : 0.4) * a})`); gr.addColorStop(1, `rgba(${c},0)`);
-        gl.fillStyle = gr; gl.fillRect(sx - rr, sy - rr, rr * 2, rr * 2);
-      }
+    const chaveLuz = noite ? [Math.round(o.x), Math.round(o.y), k.toFixed(4), vida.w, vida.h, Math.round(vida.luz * 20), janelas.pronto].join(",") : "";
+    if (chaveLuz !== vida.chaveLuz) {
+      vida.chaveLuz = chaveLuz;
+      gl.setTransform(dpr, 0, 0, dpr, 0, 0); gl.clearRect(0, 0, vida.w, vida.h);
+      if (noite) desenharLuzes(gl, k, tela, (0.5 - vida.luz) * 2);
     }
 
     const gm = vida.ctxM;
@@ -8531,8 +8530,8 @@
   const salvarCfg = () => { try { localStorage.setItem("tinybh-cfg", JSON.stringify(cfg)); } catch {} };
 
   const TXT = {
-    pt: { norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver a região inteira (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · 0 região inteira · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca nas faixas do avião e do helicóptero que sobrevoam o Tiny BH, vistas por moradores e turistas em todo o mapa.", falarZap: "WhatsApp", falarEmail: "E-mail", falarInsta: "Instagram", msgAnuncio: "Olá! Vi o Tiny BH e quero anunciar minha marca.", msgFicha: n => `Olá! Sou responsável por "${n}" e quero assumir a ficha no Tiny BH.`, anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, parques, igrejas, teatros e mercados do Centro e de Santa Efigênia, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", proximoBairro: "Próximas etapas do mapa" },
-    en: { norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole area (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banners of the plane and helicopter flying over Tiny BH, seen by locals and tourists all over the map.", falarZap: "WhatsApp", falarEmail: "Email", falarInsta: "Instagram", msgAnuncio: "Hi! I saw Tiny BH and want to advertise my brand.", msgFicha: n => `Hi! I manage "${n}" and want to claim this listing on Tiny BH.`, anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, parks, churches, theaters and markets of Downtown and Santa Efigênia, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", proximoBairro: "Next stages of the map" }
+    pt: { norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver a região inteira (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · 0 região inteira · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca nas faixas do avião e do helicóptero que sobrevoam o Tiny BH, vistas por moradores e turistas em todo o mapa.", falarZap: "WhatsApp", falarEmail: "E-mail", falarInsta: "Instagram", msgAnuncio: "Olá! Vi o Tiny BH e quero anunciar minha marca.", msgFicha: n => `Olá! Sou responsável por "${n}" e quero assumir a ficha no Tiny BH.`, anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, parques, igrejas, teatros e mercados do Centro e de Santa Efigênia, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", dicaFiltro: "Os lugares ficam escondidos no mapa. Busque um nome ou escolha uma categoria para vê-los; “Tudo” mostra todos.", proximoBairro: "Próximas etapas do mapa" },
+    en: { norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole area (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banners of the plane and helicopter flying over Tiny BH, seen by locals and tourists all over the map.", falarZap: "WhatsApp", falarEmail: "Email", falarInsta: "Instagram", msgAnuncio: "Hi! I saw Tiny BH and want to advertise my brand.", msgFicha: n => `Hi! I manage "${n}" and want to claim this listing on Tiny BH.`, anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, parks, churches, theaters and markets of Downtown and Santa Efigênia, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", dicaFiltro: "Places are hidden on the map. Search a name or pick a category to see them; “All” shows everything.", proximoBairro: "Next stages of the map" }
   };
   const CATEGORIA_EN = { "Restaurantes": "Restaurants", "Lanchonetes": "Snack bars", "Cafés": "Cafés", "Bares": "Bars", "Padarias": "Bakeries", "Açougues": "Butchers", "Supermercados": "Supermarkets", "Bebidas": "Drinks", "Moda": "Fashion", "Shoppings": "Malls", "Papelarias": "Stationery", "Informática": "Computers", "Pet shops": "Pet shops", "Beleza": "Beauty", "Automotivo": "Car services", "Postos": "Gas stations", "Bancos": "Banks", "Farmácias": "Pharmacies", "Hospitais": "Hospitals", "Clínicas": "Clinics", "Dentistas": "Dentists", "Teatros": "Theaters", "Igrejas": "Churches", "Parques": "Squares and parks", "Educação": "Education", "Hospedagem": "Lodging", "Outros": "Other" };
   const GRUPO_EN = { comer: "Food and drink", compras: "Shopping", saude: "Health", servicos: "Services", cultura: "Culture and leisure" };
@@ -8615,6 +8614,7 @@
       for (const c of lista) {
         if (vistos.has(c)) continue; vistos.add(c);
         if (c.sx + c.w < x0 || c.sx > x1 || c.sy + c.h < y0 || c.sy > y1) continue;
+        if (tiltEst.blur > 0.6 && tiltEst.foco !== null) { const sy = o.y + (c.sy + c.h / 2 + 3.93 * 6) * k; if (Math.abs(sy - tiltEst.foco) > TILT_FAIXAS[0][0] * vida.h) continue; }
         const onda = Math.sin(passoT * 0.42 + c.fase) * 0.65 + Math.sin(passoT * 0.13 + c.fase * 0.5) * 0.35;
         const des = Math.round(onda * forca) * sentido;
         if (des === 0) continue;
@@ -8674,7 +8674,7 @@
   }
 
   const tiltEst = { foco: null, alvo: null, blur: 0 };
-  const TILT_FAIXAS = [[0.1, 0.22, 0.35], [0.2, 0.36, 0.68], [0.32, 0.52, 1]];
+  const TILT_FAIXAS = [[0.12, 0.28, 0.45], [0.26, 0.5, 1]];
   function configurarTilt() {
     if (!vida.tilts) return;
     tiltMasc.ultimo = "";
@@ -8712,19 +8712,20 @@
       const largura = viewer.world.getItemAt(0)?.getContentSize().x || 7168;
       Object.assign(alturaMapa, { d, w: c.width, h: c.height, esc: c.width / largura });
       tiltMasc.ultimo = "";
+      prepararJanelas();
     };
     img.src = "dados/regiao-alturas.png";
   }
   const tiltMasc = { cs: null, ultimo: "", t: 0 };
   function atualizarMascaras(foco) {
     if (!alturaMapa.d || !vida.tilts) return;
-    const w = vida.w, h = vida.h, f = 6, mw = Math.ceil(w / f), mh = Math.ceil(h / f);
+    const w = vida.w, h = vida.h, f = 10, mw = Math.ceil(w / f), mh = Math.ceil(h / f);
     const vpt = viewer.viewport;
     const p0 = vpt.viewerElementToImageCoordinates(new OpenSeadragon.Point(0, 0)), p1 = vpt.viewerElementToImageCoordinates(new OpenSeadragon.Point(w, h));
-    const chave = [Math.round(foco / 3), Math.round(p0.x), Math.round(p0.y), Math.round(p1.x), mw, mh, cfg.forcaTilt].join(",");
+    const chave = [Math.round(foco / 10), Math.round(p0.x), Math.round(p0.y), Math.round(p1.x), mw, mh, cfg.forcaTilt].join(",");
     if (chave === tiltMasc.ultimo) return;
     tiltMasc.ultimo = chave;
-    if (!tiltMasc.cs) tiltMasc.cs = [0, 1, 2].map(() => document.createElement("canvas"));
+    if (!tiltMasc.cs) tiltMasc.cs = TILT_FAIXAS.map(() => document.createElement("canvas"));
     const k = w / (p1.x - p0.x);
     const datas = tiltMasc.cs.map(c => { if (c.width !== mw || c.height !== mh) { c.width = mw; c.height = mh; } return c.getContext("2d").createImageData(mw, mh); });
     const raios = TILT_FAIXAS.map(([r1, r2]) => [r1 * h, r2 * h]);
@@ -8736,7 +8737,7 @@
         let u = 0;
         if (ax >= 0 && ay >= 0 && ax < A.w && ay < A.h) { const v = A.d[ay * A.w + ax]; u = v > 0 ? v - 20 : 0; }
         const dist = Math.abs(sy + 3.93 * u * k - foco), o = (my * mw + mx) * 4 + 3;
-        for (let l = 0; l < 3; l++) {
+        for (let l = 0; l < TILT_FAIXAS.length; l++) {
           const [r1, r2] = raios[l], q = Math.min(1, Math.max(0, (dist - r1) / (r2 - r1)));
           datas[l].data[o] = Math.round(q * q * (3 - 2 * q) * 255);
         }
@@ -8755,9 +8756,10 @@
     if (tiltEst.foco === null) tiltEst.foco = centro;
     const alvo = ehCelular() || tiltEst.alvo === null ? centro : tiltEst.alvo;
     tiltEst.foco += (alvo - tiltEst.foco) * (1 - Math.exp(-dt / 0.14));
-    vida.pai.style.setProperty("--foco", tiltEst.foco.toFixed(1) + "px");
+    const focoR = Math.round(tiltEst.foco / 2) * 2;
+    if (focoR !== tiltEst.focoAplicado && !alturaMapa.d) { tiltEst.focoAplicado = focoR; vida.pai.style.setProperty("--foco", focoR + "px"); }
     const agora = performance.now();
-    if (tiltEst.blur > 0.2 && agora - tiltMasc.t > 45) { tiltMasc.t = agora; atualizarMascaras(tiltEst.foco); }
+    if (tiltEst.blur > 0.2 && agora - tiltMasc.t > 160) { tiltMasc.t = agora; atualizarMascaras(tiltEst.foco); }
   }
 
   const PALETA = { corpo: [196, 34, 34], asa: [214, 44, 38], faixa: [242, 232, 208], motor: [96, 98, 108], cromo: [200, 204, 212], haste: [228, 214, 182], cabine: [36, 26, 24], piloto: [120, 74, 46], oculos: [60, 60, 66], vidro: [150, 200, 226], roda: [34, 34, 38], helice: [110, 80, 54], azul: [34, 86, 168], azulEsc: [22, 52, 110], branco: [236, 238, 242], amarelo: [244, 196, 48], cinza: [120, 124, 132], rotor: [44, 46, 52] };
@@ -9294,5 +9296,72 @@
     const c = new OpenSeadragon.Point(0.5 - (fx - W / 2) / (z * W), asp / 2 - (fy - H / 2) / (z * W));
     viewer.viewport.zoomTo(z, null, !!imediato);
     viewer.viewport.panTo(c, !!imediato);
+  }
+
+  const brilho = (() => {
+    const mk = (cor) => { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, `rgba(${cor},1)`); g.addColorStop(0.35, `rgba(${cor},0.45)`); g.addColorStop(1, `rgba(${cor},0)`); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; };
+    return { poste: mk("255,190,110"), lugar: mk("255,230,170"), destaque: mk("255,210,90"), janela: mk("255,214,150") };
+  })();
+  const janelas = { pontos: [], grade: new Map(), pronto: 0 };
+  function prepararJanelas() {
+    const A = alturaMapa;
+    if (!A.d || janelas.pronto) return;
+    let s = 12345; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const inv = 1 / A.esc, CEL = 512;
+    for (let y = 0; y < A.h; y++) for (let x = 0; x < A.w; x++) {
+      const h = A.d[y * A.w + x] - 20;
+      if (h < 5) continue;
+      const n = h > 30 ? 3 : h > 12 ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        if (rnd() > 0.05) continue;
+        const px = (x + rnd()) * inv, py = (y + rnd()) * inv;
+        const quente = rnd();
+        const p = [px, py, quente < 0.7 ? 0 : quente < 0.92 ? 1 : 2, 0.55 + rnd() * 0.45];
+        const ch = Math.floor(px / CEL) + "," + Math.floor(py / CEL);
+        if (!janelas.grade.has(ch)) janelas.grade.set(ch, []);
+        janelas.grade.get(ch).push(p);
+      }
+    }
+    janelas.pronto = 1;
+    vida.chaveLuz = "";
+  }
+  function desenharLuzes(gl, k, tela, a) {
+    const x0 = -tela(0, 0)[0] / k, y0 = -tela(0, 0)[1] / k, x1 = x0 + vida.w / k, y1 = y0 + vida.h / k;
+    gl.globalCompositeOperation = "lighter";
+    if (janelas.pronto) {
+      const CORES_J = ["#ffd690", "#fff2c8", "#bfe0ff"];
+      const tam = Math.max(1, Math.min(3, 1.6 * k * 2));
+      const halo = Math.max(3, 9 * k);
+      for (let gx = Math.floor(x0 / 512); gx <= Math.floor(x1 / 512); gx++) for (let gy = Math.floor(y0 / 512); gy <= Math.floor(y1 / 512); gy++) {
+        const lista = janelas.grade.get(gx + "," + gy);
+        if (!lista) continue;
+        const limiar = 0.55 + 0.45 * Math.min(1, k * 2.2), apagar = 0.45 + 0.55 * Math.min(1, k * 2);
+        for (const [px, py, c, f] of lista) {
+          if (f > limiar) continue;
+          const [sx, sy] = tela(px, py);
+          if (sx < -4 || sy < -4 || sx > vida.w + 4 || sy > vida.h + 4) continue;
+          if (k > 0.35) { gl.globalAlpha = 0.18 * a * f; gl.drawImage(brilho.janela, sx - halo, sy - halo, halo * 2, halo * 2); }
+          gl.globalAlpha = 0.85 * a * f * apagar; gl.fillStyle = CORES_J[c];
+          gl.fillRect(sx - tam / 2, sy - tam / 2, tam, tam);
+        }
+      }
+    }
+    const rl = Math.max(3, 26 * k);
+    gl.globalAlpha = 0.6 * a;
+    for (const [px, py] of vida.postes) {
+      const [sx, sy] = tela(px, py);
+      if (sx < -rl || sy < -rl || sx > vida.w + rl || sy > vida.h + rl) continue;
+      gl.drawImage(brilho.poste, sx - rl, sy - rl, rl * 2, rl * 2);
+    }
+    const rr = Math.max(4, 40 * k);
+    for (const l of lugares) {
+      if (!l.destaque && !pinsNoMapa.has(l.chave)) continue;
+      const [sx, sy] = tela(l.px, l.py - 18);
+      if (sx < -rr || sy < -rr || sx > vida.w + rr || sy > vida.h + rr) continue;
+      gl.globalAlpha = (l.destaque ? 0.8 : 0.4) * a;
+      gl.drawImage(l.destaque ? brilho.destaque : brilho.lugar, sx - rr, sy - rr, rr * 2, rr * 2);
+    }
+    gl.globalAlpha = 1;
+    gl.globalCompositeOperation = "source-over";
   }
 </script>
