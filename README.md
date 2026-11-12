@@ -2,7 +2,7 @@
 
 Belo Horizonte inteira em um mapa isométrico em pixel art, onde moradores e turistas descobrem lugares e empresas se apresentam.
 
-Esta prévia cobre o bairro **Santa Efigênia**, a primeira etapa do mapa.
+Esta prévia cobre o **Centro-Sul de BH**: Centro, Santa Efigênia, Funcionários, Savassi, Lourdes e Serra.
 
 ## Como testar
 
