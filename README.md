@@ -21,7 +21,8 @@ Abra o link do GitHub Pages deste repositório e experimente:
 11. Abrir ⚙ Configurações: minimapa, vida no mapa, contorno do bairro e idioma PT/EN.
 12. Atalhos: `/` busca, `M` minimapa, `B` contorno do bairro, `D` tilt-shift, `T` modo turista, `0` bairro inteiro, `+` e `−` zoom, `Esc` fecha.
 13. Usar o botão de compartilhar: o link guarda o ponto e o zoom exatos do mapa.
-14. Testar no celular.
+14. Abrir o **Passeio vivo**: marcar saída e chegada (ou abrir um lugar e tocar em "Passeio até aqui"), mexer nos controles de verde, ruas calmas, cafés, cultura e minutos a mais, e comparar as rotas.
+15. Testar no celular.
 
 ## Envie seu retorno
 
