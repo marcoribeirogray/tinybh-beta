@@ -8403,7 +8403,7 @@
     vida.clarao = document.createElement("div"); vida.clarao.className = "camada-vida"; vida.clarao.id = "clarao";
     vida.tilts = [0, 1].map(i => { const d = document.createElement("div"); d.className = "camada-vida tilt-camada"; d.dataset.n = i; return d; });
     vida.marcas = document.createElement("canvas"); vida.marcas.className = "camada-vida";
-    for (const el of [vida.tinta, vida.luzes, vida.clarao, ...vida.tilts, vida.canvas]) pai.insertBefore(el, depois);
+    for (const el of [vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts]) pai.insertBefore(el, depois);
     pai.appendChild(vida.marcas);
     vida.ctx = vida.canvas.getContext("2d");
     vida.ctxL = vida.luzes.getContext("2d");
@@ -8415,17 +8415,26 @@
   function redimensionar() {
     const r = viewer.container.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    for (const c of [vida.canvas, vida.luzes, vida.marcas]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); c.style.width = r.width + "px"; c.style.height = r.height + "px"; }
+    for (const c of [vida.canvas, vida.marcas]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); c.style.width = r.width + "px"; c.style.height = r.height + "px"; }
+    const M = vida.margemLuz = Math.round(Math.max(r.width, r.height) * 0.3);
+    vida.luzes.width = Math.round((r.width + 2 * M) * dpr); vida.luzes.height = Math.round((r.height + 2 * M) * dpr);
+    Object.assign(vida.luzes.style, { width: (r.width + 2 * M) + "px", height: (r.height + 2 * M) + "px", left: -M + "px", top: -M + "px", transformOrigin: "0 0", transform: "" });
+    vida.nivelLuz = "";
     for (const d of [vida.tinta, vida.clarao, ...vida.tilts]) { d.style.width = r.width + "px"; d.style.height = r.height + "px"; }
     vida.dpr = dpr; vida.w = r.width; vida.h = r.height;
     configurarTilt();
-    vida.chaveLuz = "";
+    vida.nivelLuz = "";
   }
 
   function quadro(t) {
     requestAnimationFrame(quadro);
     if (document.hidden || !vida.ctx) return;
-    const emMovimento = viewer.isAnimating?.() || false;
+    const o0 = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(0, 0));
+    const o1 = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(1000, 0));
+    const assinatura = o0.x.toFixed(2) + "," + o0.y.toFixed(2) + "," + o1.x.toFixed(2);
+    const emMovimento = assinatura !== vida.assinatura;
+    vida.assinatura = assinatura;
+    if (emMovimento) vida.ultimoMov = t;
     if (!emMovimento && t - (vida.ultimoDesenho || 0) < (tiltEst.blur > 0.2 ? 55 : 33)) return;
     vida.ultimoDesenho = t;
     const dt = Math.min(0.1, (t - (vida.ultimo || t)) / 1000);
@@ -8456,11 +8465,27 @@
     const mostrar = k > 0.12;
     atualizarVistas(t);
     const noite = vida.luz < 0.5;
-    const chaveLuz = noite ? [Math.round(o.x), Math.round(o.y), k.toFixed(4), vida.w, vida.h, Math.round(vida.luz * 20), janelas.pronto].join(",") : "";
-    if (chaveLuz !== vida.chaveLuz) {
-      vida.chaveLuz = chaveLuz;
-      gl.setTransform(dpr, 0, 0, dpr, 0, 0); gl.clearRect(0, 0, vida.w, vida.h);
-      if (noite) desenharLuzes(gl, k, tela, (0.5 - vida.luz) * 2);
+    const MARG = vida.margemLuz || 0;
+    const parado = t - (vida.ultimoMov || 0) > 180;
+    const ref = vida.luzRef;
+    const nivel = noite ? Math.round(vida.luz * 20) + "," + janelas.pronto + "," + vida.w + "," + vida.h : "";
+    let redesenhar = nivel !== vida.nivelLuz;
+    if (!redesenhar && noite && ref) {
+      const s = k / ref.k;
+      const mudou = Math.abs(s - 1) > 0.0005 || Math.abs(o.x - ref.ox) > 0.5 || Math.abs(o.y - ref.oy) > 0.5;
+      const foraDaMargem = Math.abs(o.x - ref.ox * s) > MARG * 0.85 || Math.abs(o.y - ref.oy * s) > MARG * 0.85 || s < 0.75 || s > 1.35;
+      if (foraDaMargem || (parado && mudou)) redesenhar = true;
+      else if (mudou) {
+        const tx = o.x - ref.ox * s + MARG - MARG * s, ty = o.y - ref.oy * s + MARG - MARG * s;
+        vida.luzes.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(4)})`;
+      }
+    }
+    if (redesenhar) {
+      vida.nivelLuz = nivel;
+      gl.setTransform(dpr, 0, 0, dpr, 0, 0); gl.clearRect(0, 0, vida.w + 2 * MARG, vida.h + 2 * MARG);
+      vida.luzes.style.transform = "";
+      vida.luzRef = noite ? { ox: o.x, oy: o.y, k } : null;
+      if (noite) desenharLuzes(gl, k, (x, y) => [o.x + x * k + MARG, o.y + y * k + MARG], (0.5 - vida.luz) * 2, MARG);
     }
 
     const gm = vida.ctxM;
@@ -8614,7 +8639,6 @@
       for (const c of lista) {
         if (vistos.has(c)) continue; vistos.add(c);
         if (c.sx + c.w < x0 || c.sx > x1 || c.sy + c.h < y0 || c.sy > y1) continue;
-        if (tiltEst.blur > 0.6 && tiltEst.foco !== null) { const sy = o.y + (c.sy + c.h / 2 + 3.93 * 6) * k; if (Math.abs(sy - tiltEst.foco) > TILT_FAIXAS[0][0] * vida.h) continue; }
         const onda = Math.sin(passoT * 0.42 + c.fase) * 0.65 + Math.sin(passoT * 0.13 + c.fase * 0.5) * 0.35;
         const des = Math.round(onda * forca) * sentido;
         if (des === 0) continue;
@@ -9308,29 +9332,35 @@
     if (!A.d || janelas.pronto) return;
     let s = 12345; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
     const inv = 1 / A.esc, CEL = 512;
-    for (let y = 0; y < A.h; y++) for (let x = 0; x < A.w; x++) {
-      const h = A.d[y * A.w + x] - 20;
-      if (h < 5) continue;
-      const n = h > 30 ? 3 : h > 12 ? 2 : 1;
-      for (let k = 0; k < n; k++) {
-        if (rnd() > 0.05) continue;
-        const px = (x + rnd()) * inv, py = (y + rnd()) * inv;
-        const quente = rnd();
-        const p = [px, py, quente < 0.7 ? 0 : quente < 0.92 ? 1 : 2, 0.55 + rnd() * 0.45];
-        const ch = Math.floor(px / CEL) + "," + Math.floor(py / CEL);
-        if (!janelas.grade.has(ch)) janelas.grade.set(ch, []);
-        janelas.grade.get(ch).push(p);
-      }
+    const H = (x, y) => (x < 0 || y < 0 || x >= A.w || y >= A.h) ? 0 : A.d[y * A.w + x] - 20;
+    const pxM = 3.93 * 0.866 * 3.4 / 3.4;
+    for (let y = 1; y < A.h - 2; y++) for (let x = 0; x < A.w; x++) {
+      const h = H(x, y);
+      if (h < 6) continue;
+      const queda = H(x, y - 1) - H(x, y + 2);
+      const fachada = queda > 1.2 && queda < 40 && H(x, y - 1) >= h - 0.5;
+      if (!fachada) continue;
+      if (rnd() > (h > 25 ? 0.3 : 0.22)) continue;
+      const px = (x + 0.2 + rnd() * 0.6) * inv;
+      const andar = 3.0 * 3.93;
+      const py0 = (y + rnd()) * inv;
+      const py = Math.round(py0 / (andar * 0.5)) * (andar * 0.5);
+      const quente = rnd();
+      const p = [px, py, quente < 0.68 ? 0 : quente < 0.9 ? 1 : 2, 0.55 + rnd() * 0.45];
+      const ch = Math.floor(px / CEL) + "," + Math.floor(py / CEL);
+      if (!janelas.grade.has(ch)) janelas.grade.set(ch, []);
+      janelas.grade.get(ch).push(p);
     }
     janelas.pronto = 1;
-    vida.chaveLuz = "";
+    vida.nivelLuz = "";
   }
-  function desenharLuzes(gl, k, tela, a) {
-    const x0 = -tela(0, 0)[0] / k, y0 = -tela(0, 0)[1] / k, x1 = x0 + vida.w / k, y1 = y0 + vida.h / k;
+  function desenharLuzes(gl, k, tela, a, M = 0) {
+    const LW = vida.w + 2 * M, LH = vida.h + 2 * M;
+    const x0 = -tela(0, 0)[0] / k, y0 = -tela(0, 0)[1] / k, x1 = x0 + LW / k, y1 = y0 + LH / k;
     gl.globalCompositeOperation = "lighter";
     if (janelas.pronto) {
       const CORES_J = ["#ffd690", "#fff2c8", "#bfe0ff"];
-      const tam = Math.max(1, Math.min(3, 1.6 * k * 2));
+      const tamW = Math.max(1, Math.min(4, 3.2 * k)), tamH = Math.max(1, Math.min(4, 2.4 * k));
       const halo = Math.max(3, 9 * k);
       for (let gx = Math.floor(x0 / 512); gx <= Math.floor(x1 / 512); gx++) for (let gy = Math.floor(y0 / 512); gy <= Math.floor(y1 / 512); gy++) {
         const lista = janelas.grade.get(gx + "," + gy);
@@ -9339,10 +9369,10 @@
         for (const [px, py, c, f] of lista) {
           if (f > limiar) continue;
           const [sx, sy] = tela(px, py);
-          if (sx < -4 || sy < -4 || sx > vida.w + 4 || sy > vida.h + 4) continue;
+          if (sx < -4 || sy < -4 || sx > LW + 4 || sy > LH + 4) continue;
           if (k > 0.35) { gl.globalAlpha = 0.18 * a * f; gl.drawImage(brilho.janela, sx - halo, sy - halo, halo * 2, halo * 2); }
           gl.globalAlpha = 0.85 * a * f * apagar; gl.fillStyle = CORES_J[c];
-          gl.fillRect(sx - tam / 2, sy - tam / 2, tam, tam);
+          gl.fillRect(Math.round(sx - tamW / 2), Math.round(sy - tamH / 2), Math.ceil(tamW), Math.ceil(tamH));
         }
       }
     }
@@ -9350,14 +9380,14 @@
     gl.globalAlpha = 0.6 * a;
     for (const [px, py] of vida.postes) {
       const [sx, sy] = tela(px, py);
-      if (sx < -rl || sy < -rl || sx > vida.w + rl || sy > vida.h + rl) continue;
+      if (sx < -rl || sy < -rl || sx > LW + rl || sy > LH + rl) continue;
       gl.drawImage(brilho.poste, sx - rl, sy - rl, rl * 2, rl * 2);
     }
     const rr = Math.max(4, 40 * k);
     for (const l of lugares) {
       if (!l.destaque && !pinsNoMapa.has(l.chave)) continue;
       const [sx, sy] = tela(l.px, l.py - 18);
-      if (sx < -rr || sy < -rr || sx > vida.w + rr || sy > vida.h + rr) continue;
+      if (sx < -rr || sy < -rr || sx > LW + rr || sy > LH + rr) continue;
       gl.globalAlpha = (l.destaque ? 0.8 : 0.4) * a;
       gl.drawImage(l.destaque ? brilho.destaque : brilho.lugar, sx - rr, sy - rr, rr * 2, rr * 2);
     }
