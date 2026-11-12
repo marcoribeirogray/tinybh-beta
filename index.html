@@ -8640,10 +8640,10 @@
         if (vistos.has(c)) continue; vistos.add(c);
         if (c.sx + c.w < x0 || c.sx > x1 || c.sy + c.h < y0 || c.sy > y1) continue;
         const onda = Math.sin(passoT * 0.42 + c.fase) * 0.65 + Math.sin(passoT * 0.13 + c.fase * 0.5) * 0.35;
-        const des = Math.round(onda * forca) * sentido;
+        const des = Math.round(onda * forca * Math.max(1.6, 2.4 / k)) * sentido;
         if (des === 0) continue;
         const terco = Math.max(1, Math.floor(c.h / 3));
-        const fatias = [[0, terco, des], [terco, terco, Math.round(des / 2)]];
+        const fatias = [[0, terco, des], [terco, terco, Math.round(des * 0.55)], [terco * 2, Math.max(1, c.h - terco * 2), Math.round(des * 0.2)]];
         for (const [fy, fh, dx] of fatias) {
           if (dx === 0) continue;
           g.drawImage(copas.img, c.ax, c.ay + fy, c.w, fh, o.x + (c.sx + dx) * k, o.y + (c.sy + fy) * k, c.w * k, fh * k);
