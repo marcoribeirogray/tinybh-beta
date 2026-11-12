@@ -18747,7 +18747,8 @@
     return { lat: P.lat0 + y / P.M * 180 / Math.PI, lon: P.lon0 + x / P.Nc * 180 / Math.PI };
   }
   function carregarSuperficie() {
-    if (!PROJ) return;
+    if (!PROJ || superficie.pedido) return;
+    superficie.pedido = true;
     const img = new Image();
     img.onload = () => {
       const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
@@ -19001,6 +19002,20 @@
     n.textContent = estado.modo === "turista" ? T("paraVisitar", lista.length) : T("lugares", lista.length) + (estado.casa ? T("pertoCasa") : "");
     c.appendChild(n);
     if (!filtroAtivo()) { const d = document.createElement("div"); d.className = "dica-filtro"; d.textContent = T("dicaFiltro"); c.appendChild(d); }
+    const ruas = estado.modo === "morador" ? ruasDaBusca() : [];
+    if (ruas.length) {
+      const h = document.createElement("div"); h.className = "contagem"; h.textContent = T("ruasAchadas", ruas.length); c.appendChild(h);
+      const ul = document.createElement("ul"); ul.className = "lista";
+      for (const r of ruas) {
+        const li = document.createElement("li"), b = document.createElement("button"); b.type = "button";
+        b.innerHTML = `<span class="ponto" style="background:var(--ipe)"></span><span style="min-width:0"><span class="nome">${esc(r.nome)}</span><span class="sub">${T("verRua")}</span></span><span class="dist">${fmtDist(r.m)}</span>`;
+        b.onclick = () => mostrarRua(r);
+        li.appendChild(b); ul.appendChild(li);
+      }
+      c.appendChild(ul);
+      if (lista.length) { const h2 = document.createElement("div"); h2.className = "contagem"; h2.textContent = T("lugaresNaBusca"); c.appendChild(h2); }
+    }
+    if (!lista.length && ruas.length) return;
     if (!lista.length) {
       const v = document.createElement("div");
       v.className = "vazio";
@@ -19096,7 +19111,7 @@
   }
 
   function lerCasa() {
-    try { const v = JSON.parse(localStorage.getItem("tinybh-casa") || "null"); if (v && typeof v.px === "number") estado.casa = v; } catch {}
+    try { const v = JSON.parse(localStorage.getItem("tinybh-casa") || "null"); if (v && typeof v.px === "number") { estado.casa = v; setTimeout(carregarSuperficie, 4000); } } catch {}
     try { const r = Number(localStorage.getItem("tinybh-raio")); if (r) { estado.raio = r; document.getElementById("raio").value = String(r); } } catch {}
   }
   function salvarCasa() {
@@ -19104,6 +19119,7 @@
   }
 
   document.getElementById("marcar").onclick = () => {
+    carregarSuperficie();
     estado.marcando = true;
     document.getElementById("mapa").classList.add("marcando");
     document.getElementById("dica").hidden = false;
@@ -19111,7 +19127,7 @@
   };
   document.getElementById("limpar-casa").onclick = () => { estado.casa = null; salvarCasa(); atualizar(); };
   document.getElementById("raio").onchange = e => { estado.raio = Number(e.target.value); salvarCasa(); atualizar(); };
-  document.getElementById("busca").oninput = e => { estado.busca = e.target.value; estado.selecionado = null; atualizar(); };
+  document.getElementById("busca").oninput = e => { estado.busca = e.target.value; estado.selecionado = null; estado.ruaDestaque = null; if (estado.busca.trim().length >= 3 && !GRAFO) carregarGrafo().then(() => atualizar()); atualizar(); };
   document.getElementById("modo-morador").onclick = () => { estado.modo = "morador"; estado.selecionado = null; atualizar(); };
   document.getElementById("modo-turista").onclick = () => { estado.modo = "turista"; estado.selecionado = null; atualizar(); };
   document.getElementById("alca").onclick = () => document.getElementById("painel").classList.toggle("recolhido");
@@ -19334,19 +19350,42 @@
     if (cacheNuvem.has(chave)) return cacheNuvem.get(chave);
     let s = semente * 9301 + 49297;
     const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-    const CW = 56, CH = 26, bolas = [];
+    const CW = 96, CH = 44, base = CH - 6, lobos = [];
     const n = 5 + Math.floor(rnd() * 4);
-    for (let i = 0; i < n; i++) { const t = (i + 0.5) / n; bolas.push([8 + t * (CW - 16) + (rnd() - 0.5) * 4, CH * 0.62 - Math.sin(t * Math.PI) * CH * 0.22 * (0.6 + rnd()), 4.5 + Math.sin(t * Math.PI) * 6 + rnd() * 3]); }
-    const dentro = (x, y) => y <= CH * 0.8 && bolas.some(([bx, by, r]) => (x - bx) ** 2 + ((y - by) * 1.25) ** 2 <= r * r);
-    const PAL = { claro: ["#ffffff", "#eef2f7", "#c9d2de", "#8f9aab"], cinza: ["#e3e7ec", "#c6ccd5", "#9ea7b4", "#6c7584"], escuro: ["#a7aeb9", "#8a919c", "#6b727e", "#474d57"], noite: ["#6f7891", "#586179", "#444c62", "#2a3042"] }[tom];
+    for (let i = 0; i < n; i++) {
+      const tt = (i + 0.5) / n, meio = Math.sin(tt * Math.PI), r = 6 + meio * 11 + rnd() * 5;
+      lobos.push([10 + tt * (CW - 20) + (rnd() - 0.5) * 5, base - r * 0.5 - meio * 6 - rnd() * 4, r]);
+    }
+    const extra = 2 + Math.floor(rnd() * 3);
+    for (let i = 0; i < extra; i++) { const tt = 0.25 + rnd() * 0.5, r = 5 + rnd() * 6; lobos.push([10 + tt * (CW - 20), base - 14 - rnd() * 10, r]); }
+    const F = (x, y) => { let v = 0; for (const [lx, ly, r] of lobos) { const d2 = ((x - lx) ** 2 + ((y - ly) * 1.1) ** 2) / (r * r); if (d2 < 1) v += (1 - d2) ** 2; } return v; };
+    const D = new Int16Array(CW * CH).fill(-1);
+    for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) {
+      if (j + 0.5 > base) continue;
+      let melhor = -1, mv = 0;
+      lobos.forEach(([lx, ly, r], q) => { const v = 1 - Math.hypot(i + 0.5 - lx, (j + 0.5 - ly) * 1.1) / r; if (v > mv) { mv = v; melhor = q; } });
+      D[j * CW + i] = melhor;
+    }
+    const dentro = (i, j) => i >= 0 && j >= 0 && i < CW && j < CH && D[j * CW + i] >= 0;
+    const PAL = {
+      claro: ["#ffffff", "#f0f4f9", "#d8e0ea", "#b8c4d4", "#96a4ba"],
+      cinza: ["#eaeef3", "#d6dce4", "#bcc4cf", "#9ca5b3", "#7a8393"],
+      escuro: ["#b4bac4", "#9da4af", "#868d99", "#6c7380", "#525864"],
+      noite: ["#9aa4bd", "#838da8", "#6c7692", "#565f7a", "#3d4560"]
+    }[tom];
     const c = document.createElement("canvas"); c.width = CW; c.height = CH;
     const x = c.getContext("2d");
     for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) {
-      if (!dentro(i + 0.5, j + 0.5)) continue;
-      const borda = !dentro(i + 0.5, j - 0.5) || !dentro(i - 0.5, j + 0.5) || !dentro(i + 1.5, j + 0.5) || !dentro(i + 0.5, j + 1.5);
-      const embaixo = !dentro(i + 0.5, j + 2.5);
-      const topo = !dentro(i - 0.5, j - 1.5) || !dentro(i + 0.5, j - 2.5);
-      x.fillStyle = borda ? PAL[3] : embaixo ? PAL[2] : topo ? PAL[0] : PAL[1];
+      if (!dentro(i, j)) continue;
+      const [lx, ly, r] = lobos[D[j * CW + i]];
+      const gx = F(i + 1.5, j + 0.5) - F(i - 0.5, j + 0.5), gy = F(i + 0.5, j + 1.5) - F(i + 0.5, j - 0.5);
+      const m = Math.hypot(gx, gy) || 1;
+      const nx = (-gx / m) * 0.55 + ((i + 0.5 - lx) / r) * 0.45, ny = (-gy / m) * 0.55 + ((j + 0.5 - ly) * 1.1 / r) * 0.45;
+      const b = -0.5 * nx - 0.85 * ny;
+      let cor = b > 0.5 ? 0 : b > -0.05 ? 1 : b > -0.45 ? 2 : 3;
+      let dd = 0; while (dd < 5 && dentro(i, j + dd + 1)) dd++;
+      if (dd === 0) cor = 4; else if (dd <= 2) cor = Math.max(cor, 3); else if (dd <= 4) cor = Math.max(cor, 2);
+      x.fillStyle = PAL[cor];
       x.fillRect(i, j, 1, 1);
     }
     cacheNuvem.set(chave, c);
@@ -19360,7 +19399,7 @@
     const tom = vida.luz < 0.5 ? "noite" : vida.cond.chuva > 0.6 ? "escuro" : nv > 0.7 || vida.cond.chuva > 0 ? "cinza" : "claro";
     g.save();
     g.imageSmoothingEnabled = false;
-    g.globalAlpha = fade * 0.95;
+    g.globalAlpha = fade * 0.93;
     for (let i = 0; i < qtd; i++) {
       const n = vida.nuvens[i];
       if (n.semente === undefined) n.semente = 1 + Math.floor(Math.random() * 100000);
@@ -19368,7 +19407,7 @@
       const largura = n.r * 2.4 * k, altura = largura * sp.height / sp.width;
       const [sx, sy] = tela(n.x, n.y - 1500);
       if (sx + largura < 0 || sx - largura > vida.w || sy + altura < 0 || sy - altura > vida.h) continue;
-      const passo = Math.max(1, Math.round(largura / sp.width));
+      const passo = Math.max(2, Math.round(largura / sp.width));
       const lw = passo * sp.width, lh = passo * sp.height;
       g.drawImage(sp, Math.round(sx - lw / 2), Math.round(sy - lh / 2), lw, lh);
     }
@@ -19384,13 +19423,15 @@
   function criarCamadas() {
     const pai = viewer.drawer.canvas.parentNode;
     const depois = viewer.drawer.canvas.nextSibling;
+    vida.copasC = document.createElement("canvas"); vida.copasC.className = "camada-vida";
     vida.canvas = document.createElement("canvas"); vida.canvas.className = "camada-vida";
     vida.tinta = document.createElement("div"); vida.tinta.className = "camada-vida"; vida.tinta.id = "tinta";
     vida.luzes = document.createElement("canvas"); vida.luzes.className = "camada-vida"; vida.luzes.id = "luzes";
     vida.clarao = document.createElement("div"); vida.clarao.className = "camada-vida"; vida.clarao.id = "clarao";
     vida.tilts = [0, 1].map(i => { const d = document.createElement("div"); d.className = "camada-vida tilt-camada"; d.dataset.n = i; return d; });
     vida.marcas = document.createElement("canvas"); vida.marcas.className = "camada-vida";
-    for (const el of [vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts]) pai.insertBefore(el, depois);
+    for (const el of [vida.copasC, vida.canvas, vida.tinta, vida.luzes, vida.clarao, ...vida.tilts]) pai.insertBefore(el, depois);
+    vida.ctxC = vida.copasC.getContext("2d");
     pai.appendChild(vida.marcas);
     vida.ctx = vida.canvas.getContext("2d");
     vida.ctxL = vida.luzes.getContext("2d");
@@ -19402,7 +19443,8 @@
   function redimensionar() {
     const r = viewer.container.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    for (const c of [vida.canvas, vida.marcas]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); c.style.width = r.width + "px"; c.style.height = r.height + "px"; }
+    vida.chaveCopas = "";
+    for (const c of [vida.copasC, vida.canvas, vida.marcas]) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); c.style.width = r.width + "px"; c.style.height = r.height + "px"; }
     const M = vida.margemLuz = Math.round(Math.max(r.width, r.height) * 0.3);
     vida.luzes.width = Math.round((r.width + 2 * M) * dpr); vida.luzes.height = Math.round((r.height + 2 * M) * dpr);
     Object.assign(vida.luzes.style, { width: (r.width + 2 * M) + "px", height: (r.height + 2 * M) + "px", left: -M + "px", top: -M + "px", transformOrigin: "0 0", transform: "" });
@@ -19422,7 +19464,9 @@
     const emMovimento = assinatura !== vida.assinatura;
     vida.assinatura = assinatura;
     if (emMovimento) vida.ultimoMov = t;
-    if (!emMovimento && t - (vida.ultimoDesenho || 0) < (tiltEst.blur > 0.2 ? 55 : 33)) return;
+    const mexendo = t - (vida.ultimoMov || 0) < 220;
+    if (vida.tilts && mexendo !== vida.tiltOculto) { vida.tiltOculto = mexendo; vida.tilts.forEach(d => { d.style.visibility = mexendo ? "hidden" : ""; }); }
+    if (!emMovimento && t - (vida.ultimoDesenho || 0) < (tiltEst.blur > 0.2 ? 66 : 45)) return;
     vida.ultimoDesenho = t;
     const dt = Math.min(0.1, (t - (vida.ultimo || t)) / 1000);
     vida.ultimo = t;
@@ -19477,10 +19521,20 @@
 
     const gm = vida.ctxM;
     gm.setTransform(dpr, 0, 0, dpr, 0, 0); gm.clearRect(0, 0, vida.w, vida.h);
-    if (cfg.vida) desenharCopas(g, t, k, o);
+    if (cfg.vida && k >= 0.25 && !mexendo) {
+      const chaveC = (vida.ligada ? Math.floor(t / 250) : 0) + "|" + assinatura + "|" + vida.w;
+      if (chaveC !== vida.chaveCopas) {
+        vida.chaveCopas = chaveC;
+        const gc = vida.ctxC;
+        gc.setTransform(dpr, 0, 0, dpr, 0, 0); gc.clearRect(0, 0, vida.w, vida.h);
+        desenharCopas(gc, t, k, o);
+        vida.copasC.style.visibility = "";
+      }
+    } else if (vida.copasC.style.visibility !== "hidden") { vida.copasC.style.visibility = "hidden"; vida.chaveCopas = ""; }
     if (cfg.vida) desenharPombos(g, t, dt, k, tela, anima);
     if (cfg.linhas === "bairros") desenharContorno(gm, k, tela);
     desenharPasseio(gm, t, k, tela);
+    desenharRuaDestaque(gm, t, tela);
     passoTilt(dt);
     desenharAviao(g, gm, t, dt, k, tela, anima);
     if (!estado.passeio.rotas.length) desenharNuvensCeu(gm, k, tela);
@@ -19517,11 +19571,9 @@
 
   function iniciarVida() {
     criarCamadas();
-    carregarCopas();
     prepararPombos();
     carregarContorno();
     carregarAlturas();
-    setTimeout(carregarSuperficie, 2500);
     popular();
     aplicarCondicoes();
     buscarClima();
@@ -19545,8 +19597,8 @@
   const salvarCfg = () => { try { localStorage.setItem("tinybh-cfg", JSON.stringify(cfg)); } catch {} };
 
   const TXT = {
-    pt: { passeioVivo: "Passeio vivo", passeioChamada: "Rotas a pé por praças, árvores e cafés", passeioSub: "Troque alguns minutos por praças, ruas arborizadas, ruas calmas, cafés e cultura no caminho.", saindo: "Saindo de", indo: "Indo para", escolha: "Escolha no mapa", trocar: "Inverter saída e chegada", dicaPasseio: "Digite um lugar ou rua, use sua casa, toque em “Marcar no mapa” ou abra um lugar e toque em “Passeio até aqui”.", digite: "Digite um lugar ou rua", semSugestao: "Nada encontrado. Tente o nome de uma praça, lugar ou rua.", subCasa: "Sua casa marcada no mapa", subRua: "Rua", oQueVivo: "O que deixa o passeio vivo para você", crit_verde: "Verde", crit_sossego: "Ruas calmas", crit_vida: "Cafés e lojas", crit_cultura: "Cultura", minutosMais: "Minutos a mais", ateMin: n => n ? `até +${n} min` : "nenhum", fontePasseio: "Rotas calculadas no seu navegador com ruas e lugares do OpenStreetMap e árvores da ortofoto da PBH. “Ruas calmas” vem do tipo de via, não de medição de trânsito. Lugares podem estar fechados.", calculando: "Carregando as ruas…", maisRapida: "Mais rápida", rotulo_verde: "Passeio verde", rotulo_sossego: "Ruas calmas", rotulo_vida: "Cafés e lojas", rotulo_cultura: "Rota cultural", recomendada: "PARA VOCÊ", mesmoTempo: "mesmo tempo", sobe: n => `sobe ${n} m`, jaViva: "Aqui o caminho mais rápido já é o mais agradável. Aumente os minutos a mais para ver desvios.", noCaminho: "No caminho", pela: "Pela", porQue: "Por que esta rota", abrirGoogle: "Abrir no Google Maps (a pé)", paradaSugerida: "PARADA", passeioFora: "Um dos pontos está fora das ruas mapeadas do Centro-Sul. Marque mais perto de uma rua.", passeioPerto: "Saída e chegada estão no mesmo ponto. Escolha um destino mais longe.", passeioSemRota: "Não achei caminho a pé entre esses pontos.", pontoMapa: "Ponto no mapa", perto: "Perto da ", dicaOrigem: "Toque no mapa de onde você vai sair", dicaDestino: "Toque no mapa aonde você quer chegar", passeioAqui: "Passeio até aqui", norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver a região inteira (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · P passeio · 0 região inteira · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca nas faixas do avião e do helicóptero que sobrevoam o Tiny BH, vistas por moradores e turistas em todo o mapa.", falarZap: "WhatsApp", falarEmail: "E-mail", falarInsta: "Instagram", msgAnuncio: "Olá! Vi o Tiny BH e quero anunciar minha marca.", msgFicha: n => `Olá! Sou responsável por "${n}" e quero assumir a ficha no Tiny BH.`, anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, parques, igrejas, teatros e mercados do Centro-Sul de BH, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", dicaFiltro: "Os lugares ficam escondidos no mapa. Busque um nome ou escolha uma categoria para vê-los; “Tudo” mostra todos.", proximoBairro: "Próximas etapas do mapa" },
-    en: { passeioVivo: "Lively walk", passeioChamada: "Walking routes past squares, trees and cafés", passeioSub: "Trade a few minutes for squares, tree-lined and quiet streets, cafés and culture along the way.", saindo: "Leaving from", indo: "Going to", escolha: "Pick on the map", trocar: "Swap start and end", dicaPasseio: "Type a place or street, use your home, tap “Mark on the map” or open a place and tap “Walk here”.", digite: "Type a place or street", semSugestao: "Nothing found. Try the name of a square, place or street.", subCasa: "Your home marked on the map", subRua: "Street", oQueVivo: "What makes a walk lively for you", crit_verde: "Green", crit_sossego: "Quiet streets", crit_vida: "Cafés and shops", crit_cultura: "Culture", minutosMais: "Extra minutes", ateMin: n => n ? `up to +${n} min` : "none", fontePasseio: "Routes computed in your browser from OpenStreetMap streets and places and trees from the BH city orthophoto. “Quiet streets” comes from road type, not measured traffic. Places may be closed.", calculando: "Loading streets…", maisRapida: "Fastest", rotulo_verde: "Green walk", rotulo_sossego: "Quiet streets", rotulo_vida: "Cafés and shops", rotulo_cultura: "Culture route", recomendada: "FOR YOU", mesmoTempo: "same time", sobe: n => `climbs ${n} m`, jaViva: "Here the fastest way is already the nicest. Allow more extra minutes to see detours.", noCaminho: "Along the way", pela: "Via", porQue: "Why this route", abrirGoogle: "Open in Google Maps (walking)", paradaSugerida: "STOP", passeioFora: "One of the points is off the mapped streets of Centro-Sul. Mark it closer to a street.", passeioPerto: "Start and end are at the same spot. Pick a farther destination.", passeioSemRota: "No walking path found between these points.", pontoMapa: "Point on the map", perto: "Near ", dicaOrigem: "Tap the map where you will start", dicaDestino: "Tap the map where you want to go", passeioAqui: "Walk here", norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole area (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · P walk · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banners of the plane and helicopter flying over Tiny BH, seen by locals and tourists all over the map.", falarZap: "WhatsApp", falarEmail: "Email", falarInsta: "Instagram", msgAnuncio: "Hi! I saw Tiny BH and want to advertise my brand.", msgFicha: n => `Hi! I manage "${n}" and want to claim this listing on Tiny BH.`, anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, parks, churches, theaters and markets of BH's Centro-Sul, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", dicaFiltro: "Places are hidden on the map. Search a name or pick a category to see them; “All” shows everything.", proximoBairro: "Next stages of the map" }
+    pt: { passeioVivo: "Passeio vivo", passeioChamada: "Rotas a pé por praças, árvores e cafés", passeioSub: "Troque alguns minutos por praças, ruas arborizadas, ruas calmas, cafés e cultura no caminho.", saindo: "Saindo de", indo: "Indo para", escolha: "Escolha no mapa", trocar: "Inverter saída e chegada", dicaPasseio: "Digite um lugar ou rua, use sua casa, toque em “Marcar no mapa” ou abra um lugar e toque em “Passeio até aqui”.", digite: "Digite um lugar ou rua", semSugestao: "Nada encontrado. Tente o nome de uma praça, lugar ou rua.", subCasa: "Sua casa marcada no mapa", subRua: "Rua", oQueVivo: "O que deixa o passeio vivo para você", crit_verde: "Verde", crit_sossego: "Ruas calmas", crit_vida: "Cafés e lojas", crit_cultura: "Cultura", minutosMais: "Minutos a mais", ateMin: n => n ? `até +${n} min` : "nenhum", fontePasseio: "Rotas calculadas no seu navegador com ruas e lugares do OpenStreetMap e árvores da ortofoto da PBH. “Ruas calmas” vem do tipo de via, não de medição de trânsito. Lugares podem estar fechados.", calculando: "Carregando as ruas…", maisRapida: "Mais rápida", rotulo_verde: "Passeio verde", rotulo_sossego: "Ruas calmas", rotulo_vida: "Cafés e lojas", rotulo_cultura: "Rota cultural", recomendada: "PARA VOCÊ", mesmoTempo: "mesmo tempo", sobe: n => `sobe ${n} m`, jaViva: "Aqui o caminho mais rápido já é o mais agradável. Aumente os minutos a mais para ver desvios.", noCaminho: "No caminho", pela: "Pela", porQue: "Por que esta rota", abrirGoogle: "Abrir no Google Maps (a pé)", paradaSugerida: "PARADA", passeioFora: "Um dos pontos está fora das ruas mapeadas do Centro-Sul. Marque mais perto de uma rua.", passeioPerto: "Saída e chegada estão no mesmo ponto. Escolha um destino mais longe.", passeioSemRota: "Não achei caminho a pé entre esses pontos.", pontoMapa: "Ponto no mapa", perto: "Perto da ", dicaOrigem: "Toque no mapa de onde você vai sair", dicaDestino: "Toque no mapa aonde você quer chegar", passeioAqui: "Passeio até aqui", ruasAchadas: n => n === 1 ? "1 rua" : `${n} ruas`, verRua: "Ver a rua no mapa", lugaresNaBusca: "Lugares", norte: "Norte", aproximar: "Aproximar (+)", afastar: "Afastar (−)", inicio: "Ver a região inteira (0)", tilt: "Tilt-shift (D)", compartilhar: "Compartilhar este lugar", config: "Configurações", dobrar: "Recolher ou mostrar os cartões", minimapa: "Minimapa", ligado: "Ligado", desligado: "Desligado", vidaMapa: "Vida no mapa", intensidade: "Intensidade do tilt-shift", linhas: "Linhas no mapa", nenhuma: "Nenhuma", bairros: "Bairros", idioma: "Idioma", teclas: "Teclas: / buscar · M minimapa · B bairros · D tilt-shift · T turista · P passeio · 0 região inteira · + − zoom", anuncioTitulo: "Anuncie no céu de BH", anuncioTexto: "Sua marca nas faixas do avião e do helicóptero que sobrevoam o Tiny BH, vistas por moradores e turistas em todo o mapa.", falarZap: "WhatsApp", falarEmail: "E-mail", falarInsta: "Instagram", msgAnuncio: "Olá! Vi o Tiny BH e quero anunciar minha marca.", msgFicha: n => `Olá! Sou responsável por "${n}" e quero assumir a ficha no Tiny BH.`, anuncioContato: "Contato comercial: em breve.", fechar: "Fechar", climaMapa: "Clima no mapa", horaDia: "Hora do dia", morador: "Moro em BH", turista: "Bem-vindo, Turista", busca: "Buscar: pizza, farmácia, hospital…", minhaCasa: "Minha casa", casaVazia: "Marque onde você mora para ver o que tem perto.", casaCheia: d => `Mostrando lugares a até ${d} da sua casa.`, marcar: "Marcar no mapa", mudar: "Mudar", remover: "Remover", boasVindas: "Bem-vindo a BH!", introTurista: "Praças, parques, igrejas, teatros e mercados do Centro-Sul de BH, sempre grátis no mapa, e lugares com o selo Bem-vindo, Turista.", tudo: "Tudo", lugares: n => `${n} lugares`, pertoCasa: " perto da sua casa", paraVisitar: n => `${n} lugares para visitar`, roteiro: "Passeio a pé pelas praças e igrejas", vazioCasa: "Nada encontrado nesse raio. Aumente a distância ou limpe a busca.", vazio: "Nada encontrado. Tente outro termo, como “padaria” ou “farmácia”.", voltar: "← Voltar à lista", endereco: "Endereço", horario: "Horário", telefone: "Telefone", distancia: "Distância", daCasa: " da sua casa", comoChegar: "Como chegar", site: "Site", copiarLink: "Copiar link", linkCopiado: "Link copiado", dica: "Toque no mapa onde fica sua casa", emBreve: "EM BREVE", selo: "SELO", destaque: "DESTAQUE", gratis: "Ponto turístico. Sempre gratuito no mapa.", assuma: "É o seu negócio? Assuma esta ficha para adicionar fotos, WhatsApp, cardápio e cupons.", planoDestaque: "Plano Destaque (simulação). Pin maior com placa e topo da busca. Na versão real, só empresas que assinarem aparecem assim.", planoSelo: "Selo Bem-vindo, Turista (simulação). Aparece no modo turista com cupom para visitantes.", creditos: "Prévia interna · planos e selos são simulações", dicaFiltro: "Os lugares ficam escondidos no mapa. Busque um nome ou escolha uma categoria para vê-los; “Tudo” mostra todos.", proximoBairro: "Próximas etapas do mapa" },
+    en: { passeioVivo: "Lively walk", passeioChamada: "Walking routes past squares, trees and cafés", passeioSub: "Trade a few minutes for squares, tree-lined and quiet streets, cafés and culture along the way.", saindo: "Leaving from", indo: "Going to", escolha: "Pick on the map", trocar: "Swap start and end", dicaPasseio: "Type a place or street, use your home, tap “Mark on the map” or open a place and tap “Walk here”.", digite: "Type a place or street", semSugestao: "Nothing found. Try the name of a square, place or street.", subCasa: "Your home marked on the map", subRua: "Street", oQueVivo: "What makes a walk lively for you", crit_verde: "Green", crit_sossego: "Quiet streets", crit_vida: "Cafés and shops", crit_cultura: "Culture", minutosMais: "Extra minutes", ateMin: n => n ? `up to +${n} min` : "none", fontePasseio: "Routes computed in your browser from OpenStreetMap streets and places and trees from the BH city orthophoto. “Quiet streets” comes from road type, not measured traffic. Places may be closed.", calculando: "Loading streets…", maisRapida: "Fastest", rotulo_verde: "Green walk", rotulo_sossego: "Quiet streets", rotulo_vida: "Cafés and shops", rotulo_cultura: "Culture route", recomendada: "FOR YOU", mesmoTempo: "same time", sobe: n => `climbs ${n} m`, jaViva: "Here the fastest way is already the nicest. Allow more extra minutes to see detours.", noCaminho: "Along the way", pela: "Via", porQue: "Why this route", abrirGoogle: "Open in Google Maps (walking)", paradaSugerida: "STOP", passeioFora: "One of the points is off the mapped streets of Centro-Sul. Mark it closer to a street.", passeioPerto: "Start and end are at the same spot. Pick a farther destination.", passeioSemRota: "No walking path found between these points.", pontoMapa: "Point on the map", perto: "Near ", dicaOrigem: "Tap the map where you will start", dicaDestino: "Tap the map where you want to go", passeioAqui: "Walk here", ruasAchadas: n => n === 1 ? "1 street" : `${n} streets`, verRua: "Show the street on the map", lugaresNaBusca: "Places", norte: "North", aproximar: "Zoom in (+)", afastar: "Zoom out (−)", inicio: "See the whole area (0)", tilt: "Tilt-shift (D)", compartilhar: "Share this view", config: "Settings", dobrar: "Hide or show the cards", minimapa: "Minimap", ligado: "On", desligado: "Off", vidaMapa: "Life on the map", intensidade: "Tilt-shift strength", linhas: "Lines on the map", nenhuma: "None", bairros: "Neighborhoods", idioma: "Language", teclas: "Keys: / search · M minimap · B neighborhoods · D tilt-shift · T tourist · P walk · 0 whole area · + − zoom", anuncioTitulo: "Advertise in BH's sky", anuncioTexto: "Your brand on the banners of the plane and helicopter flying over Tiny BH, seen by locals and tourists all over the map.", falarZap: "WhatsApp", falarEmail: "Email", falarInsta: "Instagram", msgAnuncio: "Hi! I saw Tiny BH and want to advertise my brand.", msgFicha: n => `Hi! I manage "${n}" and want to claim this listing on Tiny BH.`, anuncioContato: "Sales contact: coming soon.", fechar: "Close", climaMapa: "Weather on the map", horaDia: "Time of day", morador: "I live in BH", turista: "Welcome, Tourist", busca: "Search: pizza, pharmacy, hospital…", minhaCasa: "My home", casaVazia: "Mark where you live to see what's nearby.", casaCheia: d => `Showing places within ${d} of your home.`, marcar: "Mark on the map", mudar: "Change", remover: "Remove", boasVindas: "Welcome to BH!", introTurista: "Squares, parks, churches, theaters and markets of BH's Centro-Sul, always free on the map, plus places with the Welcome, Tourist seal.", tudo: "All", lugares: n => `${n} places`, pertoCasa: " near your home", paraVisitar: n => `${n} places to visit`, roteiro: "Walking tour of squares and churches", vazioCasa: "Nothing within this radius. Increase the distance or clear the search.", vazio: "Nothing found. Try another word, like “bakery” or “pharmacy”.", voltar: "← Back to the list", endereco: "Address", horario: "Hours", telefone: "Phone", distancia: "Distance", daCasa: " from your home", comoChegar: "Directions", site: "Website", copiarLink: "Copy link", linkCopiado: "Link copied", dica: "Tap the map where your home is", emBreve: "SOON", selo: "SEAL", destaque: "FEATURED", gratis: "Tourist spot. Always free on the map.", assuma: "Is this your business? Claim this listing to add photos, WhatsApp, menu and coupons.", planoDestaque: "Featured plan (simulation). Bigger pin with a sign and top of search. In the real version, only subscribing businesses look like this.", planoSelo: "Welcome, Tourist seal (simulation). Shows in tourist mode with a coupon for visitors.", creditos: "Internal preview · plans and seals are simulations", dicaFiltro: "Places are hidden on the map. Search a name or pick a category to see them; “All” shows everything.", proximoBairro: "Next stages of the map" }
   };
   const CATEGORIA_EN = { "Restaurantes": "Restaurants", "Lanchonetes": "Snack bars", "Cafés": "Cafés", "Bares": "Bars", "Padarias": "Bakeries", "Açougues": "Butchers", "Supermercados": "Supermarkets", "Bebidas": "Drinks", "Moda": "Fashion", "Shoppings": "Malls", "Papelarias": "Stationery", "Informática": "Computers", "Pet shops": "Pet shops", "Beleza": "Beauty", "Automotivo": "Car services", "Postos": "Gas stations", "Bancos": "Banks", "Farmácias": "Pharmacies", "Hospitais": "Hospitals", "Clínicas": "Clinics", "Dentistas": "Dentists", "Teatros": "Theaters", "Igrejas": "Churches", "Parques": "Squares and parks", "Educação": "Education", "Hospedagem": "Lodging", "Outros": "Other" };
   const GRUPO_EN = { comer: "Food and drink", compras: "Shopping", saude: "Health", servicos: "Services", cultura: "Culture and leisure" };
@@ -19616,9 +19668,10 @@
     }).catch(() => {});
   }
   function desenharCopas(g, t, k, o) {
+    if (!copas.iniciado) { copas.iniciado = true; carregarCopas(); }
     if (!copas.pronto || k < 0.25) return;
     const x0 = -o.x / k, y0 = -o.y / k, x1 = x0 + vida.w / k, y1 = y0 + vida.h / k;
-    const passoT = vida.ligada ? Math.floor(t / 125) : 0;
+    const passoT = vida.ligada ? Math.floor(t / 250) * 2 : 0;
     const forca = Math.min(2.6, 0.7 + (vida.cond.vento || 8) / 14);
     const sentido = Math.sin(((vida.cond.ventoDir ?? 90) + 180 - 60) * Math.PI / 180) >= 0 ? 1 : -1;
     g.imageSmoothingEnabled = k < 0.9;
@@ -20470,6 +20523,7 @@
 
   async function abrirPasseio(opc = {}) {
     const P = estado.passeio;
+    carregarSuperficie();
     P.aberto = true;
     estado.selecionado = null;
     if (opc.destino) P.destino = opc.destino;
@@ -20592,6 +20646,43 @@
     for (const l of porNome) if (!normalizar(l.nome).startsWith(q)) out.push(deLugar(l));
     if (out.length < 8) for (const l of lugares.filter(l => !nomes.has(normalizar(l.nome)) && normalizar((l.endereco || "") + " " + l.categoria).includes(q)).slice(0, 8 - out.length)) out.push(deLugar(l));
     return out;
+  }
+
+  function ruasDaBusca() {
+    const q = normalizar(estado.busca).trim();
+    if (!GRAFO || q.length < 3) return [];
+    const G = GRAFO;
+    if (!G.porRua) {
+      G.porRua = new Map();
+      for (let e = 0; e < G.E; e++) { const nome = G.d.ruas[G.rua[e]]; if (!nome) continue; if (!G.porRua.has(nome)) G.porRua.set(nome, { nome, arestas: [], m: 0 }); const r = G.porRua.get(nome); r.arestas.push(e); r.m += G.m[e]; }
+    }
+    const out = [];
+    for (const r of G.porRua.values()) if (normalizar(r.nome).includes(q)) out.push(r);
+    return out.sort((a, b) => (normalizar(a.nome).startsWith(q) ? 0 : 1) - (normalizar(b.nome).startsWith(q) ? 0 : 1) || b.m - a.m).slice(0, 6);
+  }
+  function mostrarRua(r) {
+    const G = GRAFO;
+    estado.ruaDestaque = r;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const e of r.arestas) { const L = G.linha[e]; for (let i = 0; i < L.length; i += 2) { x0 = Math.min(x0, L[i]); x1 = Math.max(x1, L[i]); y0 = Math.min(y0, L[i + 1]); y1 = Math.max(y1, L[i + 1]); } }
+    const cel = ehCelular(), ret = viewer.container.getBoundingClientRect(), W0 = ret.width, H0 = ret.height;
+    const area = cel ? { l: 24, r: W0 - 70, t: 150, b: H0 * 0.38 - 16 } : { l: 400, r: W0 - 90, t: 110, b: H0 - 170 };
+    const a = vp(x0 - 150, y0 - 150), b = vp(x1 + 150, y1 + 150);
+    const z = Math.min(viewer.viewport.imageToViewportZoom(0.8), (area.r - area.l) / ((b.x - a.x) * W0), (area.b - area.t) / ((b.y - a.y) * W0));
+    const centro = new OpenSeadragon.Point((a.x + b.x) / 2 + (W0 / 2 - (area.l + area.r) / 2) / (z * W0), (a.y + b.y) / 2 + (H0 / 2 - (area.t + area.b) / 2) / (z * W0));
+    viewer.viewport.zoomTo(z); viewer.viewport.panTo(centro);
+    if (cel) document.getElementById("painel").classList.add("recolhido");
+  }
+  function desenharRuaDestaque(gm, t, tela) {
+    const r = estado.ruaDestaque;
+    if (!r || !GRAFO || estado.passeio.aberto) return;
+    gm.save(); gm.lineJoin = "round"; gm.lineCap = "round";
+    gm.beginPath();
+    for (const e of r.arestas) { const L = GRAFO.linha[e]; for (let i = 0; i < L.length; i += 2) { const [x, y] = tela(L[i], L[i + 1]); i ? gm.lineTo(x, y) : gm.moveTo(x, y); } }
+    gm.strokeStyle = "#0f1318"; gm.lineWidth = 9; gm.stroke();
+    gm.strokeStyle = "#f2c230"; gm.lineWidth = 5; gm.stroke();
+    gm.strokeStyle = `rgba(255,248,230,${0.5 + 0.4 * Math.sin(t / 300)})`; gm.lineWidth = 2; gm.stroke();
+    gm.restore();
   }
 
   function linkGoogle(r) {
