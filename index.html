@@ -205,7 +205,7 @@
   }
   .passeio-abrir { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid rgba(95, 191, 106, 0.45); background: linear-gradient(135deg, rgba(95, 191, 106, 0.16), rgba(90, 169, 230, 0.10)); padding: 9px 12px; border-radius: 8px; cursor: pointer; }
   .passeio-abrir:hover { border-color: var(--verde); }
-  .passeio-abrir canvas { width: 15px; height: 24px; image-rendering: pixelated; }
+  .passeio-abrir canvas { width: 15px; height: 24px; }
   .passeio-abrir b { display: block; font-family: var(--fonte-titulo); font-size: 12px; font-weight: 400; color: var(--verde); letter-spacing: 0.02em; }
   .passeio-abrir small { display: block; color: var(--apagado); font-size: 12px; margin-top: 2px; }
   .passeio-abrir i { font-style: normal; color: var(--apagado); font-size: 16px; }
@@ -347,7 +347,7 @@
         </div>
       </div>
     </div>
-    <button class="passeio-abrir" id="abrir-passeio" type="button"><canvas id="icone-passeio" width="11" height="18"></canvas><span><b data-i18n="passeioVivo">Passeio vivo</b><small data-i18n="passeioChamada">Rotas a pé por praças, árvores e cafés</small></span><i>›</i></button>
+    <button class="passeio-abrir" id="abrir-passeio" type="button"><canvas id="icone-passeio" width="30" height="48"></canvas><span><b data-i18n="passeioVivo">Passeio vivo</b><small data-i18n="passeioChamada">Rotas a pé por praças, árvores e cafés</small></span><i>›</i></button>
     <div id="bloco-turista" hidden>
       <div class="intro-turista">
         <h2>Bem-vindo a BH!</h2>
@@ -28917,14 +28917,36 @@ void main() {
     { k: "vida", cor: "#e8744c" },
     { k: "cultura", cor: "#a98be8" }
   ];
-  const BONECO_BASE = ["...kkkk....", "..kcccck...", ".kcccccckk.", ".kCCCCCCCck", "..khoooko..", "..kooookk..", "..kooooook.", "...kooook..", "..kkkkkk...", ".kbkssssk..", ".kbkssssmk.", ".kbkSsssmk.", ".kbkSssoko."];
-  const BONECO = [
-    [...BONECO_BASE, "..kkppppk..", "...kppkpk..", "..kpk.kpk..", "..kwk..kwk.", ".kwwk..kwwk"],
-    [...BONECO_BASE, "..kkppppk..", "...kpppk...", "...kpkpk...", "...kwkwk...", "..kwwkwwk.."],
-    [...BONECO_BASE, "..kkppppk..", "...kpkppk..", "...kpkkpk..", "..kwk.kwk..", ".kwwk.kwwk."],
-    [...BONECO_BASE, "..kkppppk..", "...kpppk...", "...kpkpk...", "...kwkwk...", "..kwwkwwk.."]
-  ];
-  const CORES_BONECO = { k: "#16181e", o: "#f2c9a0", c: "#e8744c", C: "#c45230", b: "#f2c230", s: "#2f7fd8", S: "#205caa", p: "#283454", w: "#eeeeee", m: "#fff8e6", h: "#5a3a24" };
+  function desenharMiniatura(g, x, y, fase, esq, e = 1) {
+    g.save();
+    g.translate(x, y);
+    if (esq) g.scale(-1, 1);
+    g.scale(e, e);
+    const sw = Math.sin(fase), bob = Math.abs(Math.cos(fase)) * 0.8;
+    g.fillStyle = "rgba(10,12,18,0.38)";
+    g.beginPath(); g.ellipse(0, 0, 6.5, 2.2, 0, 0, Math.PI * 2); g.fill();
+    g.translate(0, -bob);
+    const contorno = "rgba(18,20,28,0.9)";
+    g.lineCap = "round"; g.lineJoin = "round";
+    const perna = (ang, cor) => { g.save(); g.translate(0, -9); g.rotate(ang); g.strokeStyle = contorno; g.lineWidth = 3.6; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 8.5); g.stroke(); g.strokeStyle = cor; g.lineWidth = 2.2; g.stroke(); g.fillStyle = "#f4f4f4"; g.beginPath(); g.ellipse(0.8, 9, 1.9, 1.1, 0, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno; g.lineWidth = 0.7; g.stroke(); g.restore(); };
+    perna(sw * 0.45, "#2b3a63");
+    perna(-sw * 0.45, "#34467a");
+    const braco = (ang, cor) => { g.save(); g.translate(0, -16.5); g.rotate(ang); g.strokeStyle = contorno; g.lineWidth = 3.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 6.5); g.stroke(); g.strokeStyle = cor; g.lineWidth = 1.9; g.stroke(); g.fillStyle = "#f2c9a0"; g.beginPath(); g.arc(0, 7, 1.15, 0, Math.PI * 2); g.fill(); g.restore(); };
+    braco(sw * 0.5, "#2668b8");
+    g.fillStyle = "#f2c230"; g.strokeStyle = contorno; g.lineWidth = 0.8;
+    g.beginPath(); g.roundRect(-5.2, -17.5, 3.6, 6.5, 1.4); g.fill(); g.stroke();
+    const tg = g.createLinearGradient(-3, -18, 3, -9);
+    tg.addColorStop(0, "#4a9bef"); tg.addColorStop(1, "#225fb0");
+    g.fillStyle = tg; g.beginPath(); g.roundRect(-3.2, -18, 6.4, 9.6, 2.6); g.fill(); g.lineWidth = 0.9; g.stroke();
+    braco(-sw * 0.5, "#3a86da");
+    const hg = g.createRadialGradient(-1, -22.6, 0.5, 0, -21.5, 4.2);
+    hg.addColorStop(0, "#ffe1c2"); hg.addColorStop(1, "#e2b088");
+    g.fillStyle = hg; g.beginPath(); g.arc(0, -21.5, 3.6, 0, Math.PI * 2); g.fill(); g.lineWidth = 0.9; g.stroke();
+    g.fillStyle = "#e8744c"; g.beginPath(); g.arc(0, -22.3, 3.75, Math.PI * 1.02, Math.PI * 1.98); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(3.2, -22.4, 2.4, 0.8, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = "#1a1c22"; g.beginPath(); g.arc(1.9, -21.2, 0.45, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
   const BANDEIRA = ["#ffff.", "#ffff.", "#ffff.", "#.....", "#.....", "#.....", "#.....", "##...."];
   estado.passeio = { aberto: false, origem: null, destino: null, pesos: { verde: 0.7, sossego: 0.6, vida: 0.3, cultura: 0.3 }, minutos: 6, rotas: [], sel: 0, carregando: false, perto: [], erro: "" };
   try { const s = JSON.parse(localStorage.getItem("tinybh-passeio") || "null"); if (s && s.pesos) { Object.assign(estado.passeio.pesos, s.pesos); if (typeof s.minutos === "number") estado.passeio.minutos = s.minutos; } } catch {}
@@ -29525,12 +29547,14 @@ void main() {
         const f = (alvo - r.comp[i - 1]) / Math.max(1e-6, r.comp[i] - r.comp[i - 1]);
         const x = r.pts[i - 1][0] + (r.pts[i][0] - r.pts[i - 1][0]) * f, y = r.pts[i - 1][1] + (r.pts[i][1] - r.pts[i - 1][1]) * f;
         const [bx, by] = tela(x, y), esq = r.pts[i][0] < r.pts[i - 1][0];
-        const sb = 3, parado = P.anda && t < P.anda.pausaAte;
-        const quadroB = vida.ligada && !parado ? Math.floor(t / 170) % 4 : 1;
-        const cx = Math.round(bx), cy = Math.round(by - 9 * sb);
-        gm.fillStyle = "rgba(15,19,24,0.4)"; gm.beginPath(); gm.ellipse(cx, Math.round(by), 5 * sb, 1.8 * sb, 0, 0, Math.PI * 2); gm.fill();
-        gm.fillStyle = "rgba(255,243,214,0.55)"; gm.beginPath(); gm.arc(cx, cy, 9 * sb, 0, Math.PI * 2); gm.fill();
-        pixelSprite(gm, BONECO[quadroB], cx, cy, sb, CORES_BONECO, esq);
+        const parado = P.anda && t < P.anda.pausaAte;
+        gm.fillStyle = "rgba(255,248,230,0.6)"; gm.beginPath(); gm.ellipse(bx, by, 11, 4, 0, 0, Math.PI * 2); gm.fill();
+        desenharMiniatura(gm, bx, by, vida.ligada && !parado ? t * 0.011 : 0, esq, 1.5);
+        if (k < 0.45) {
+          const ty = by - 48 - (vida.ligada ? Math.abs(Math.sin(t / 260)) * 5 : 0);
+          gm.fillStyle = "#e8744c"; gm.strokeStyle = "#16181e"; gm.lineWidth = 1.6;
+          gm.beginPath(); gm.moveTo(bx - 6, ty - 7); gm.lineTo(bx + 6, ty - 7); gm.lineTo(bx, ty); gm.closePath(); gm.fill(); gm.stroke();
+        }
         const meio = total / 2; let j = 1; while (j < r.comp.length - 1 && r.comp[j] < meio) j++;
         const [mx, my] = tela(r.pts[j][0], r.pts[j][1]);
         const txt = fmtMin(r.tempo);
@@ -29600,8 +29624,8 @@ void main() {
     const c = document.getElementById("icone-passeio");
     if (!c) return;
     const g = c.getContext("2d");
-    g.clearRect(0, 0, 11, 18);
-    pixelSprite(g, BONECO[1], 5.5, 9, 1, CORES_BONECO);
+    g.clearRect(0, 0, 30, 48);
+    desenharMiniatura(g, 15, 45, 0.7, false, 1.75);
   }
   document.getElementById("abrir-passeio").onclick = () => abrirPasseio();
 
